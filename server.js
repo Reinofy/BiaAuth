@@ -8,6 +8,7 @@ const nodemailer = require('nodemailer');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 
 const app = express();
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3000;
 
 // Diretórios de armazenamento
