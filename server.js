@@ -617,9 +617,7 @@ async function sendSignatureEmails(docRecord, signature) {
 
       // Se ambos (ou o proprietário) foram enviados com sucesso pelo Google Script, retorna!
       // Caso tenha falhado, cai para o MODO 2 (SMTP / Ethereal) como contingência para não perder o comprovante
-      if (results.ownerEmailSent && (!signature.email || results.signerEmailSent)) {
-        return results;
-      }
+      return results;
     } catch (err) {
       console.error('Erro ao enviar via Google Apps Script:', err);
       results.error = err.message;
