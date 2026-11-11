@@ -678,10 +678,56 @@ async function sendSignatureEmails(docRecord, signature) {
 // ROTAS DA API
 // ============================================================================
 
-// 1. Listar todos os documentos (para histórico rápido do proprietário na página inicial)
+// AUTENTICAÇÃO E TOKENS DO PROPRIETÁRIO (PROTEÇÃO DE DOCUMENTOS ASSINADOS)
+const OWNER_SECRET = process.env.OWNER_SECRET || 'biaauth-owner-secret-key-2026-sha256';
+
+function createOwnerToken(user) {
+  const payload = Buffer.from(
+    JSON.stringify({
+      email: user.email.toLowerCase().trim(),
+      name: user.name,
+      picture: user.picture || null,
+      iat: Date.now()
+    })
+  ).toString('base64url');
+  const sig = crypto.createHmac('sha256', OWNER_SECRET).update(payload).digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifyOwnerToken(req) {
+  const authHeader = req.headers['authorization'] || '';
+  const token =
+    (authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '') ||
+    (req.query && req.query.token ? String(req.query.token).trim() : '') ||
+    (req.body && req.body.ownerToken ? String(req.body.ownerToken).trim() : '');
+
+  if (!token || !token.includes('.')) return null;
+  const [payload, sig] = token.split('.');
+  const expectedSig = crypto.createHmac('sha256', OWNER_SECRET).update(payload).digest('base64url');
+  if (sig !== expectedSig) return null;
+
+  try {
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!data || !data.email) return null;
+    return data;
+  } catch (e) {
+    return null;
+  }
+}
+
+// 1. Listar documentos EXCLUSIVOS do proprietário autenticado via Google
 app.get('/api/documents', (req, res) => {
+  const owner = verifyOwnerToken(req);
+  if (!owner) {
+    return res.status(401).json({
+      error: 'Faça login com sua conta Google para visualizar seus documentos e assinaturas.',
+      documents: []
+    });
+  }
+
   const db = readDB();
   const list = db.documents
+    .filter((d) => (d.ownerEmail || '').toLowerCase().trim() === owner.email.toLowerCase().trim())
     .slice()
     .reverse()
     .map((d) => ({
@@ -697,13 +743,34 @@ app.get('/api/documents', (req, res) => {
   res.json({ documents: list });
 });
 
-// 2. Gerar um PDF de exemplo caso o usuário queira testar sem fazer upload
+// 1b. Excluir documento (apenas pelo proprietário autenticado dono do documento)
+app.delete('/api/documents/:id', (req, res) => {
+  const owner = verifyOwnerToken(req);
+  if (!owner) {
+    return res.status(401).json({ error: 'Não autorizado.' });
+  }
+  const db = readDB();
+  const idx = db.documents.findIndex(
+    (d) => d.id === req.params.id && (d.ownerEmail || '').toLowerCase().trim() === owner.email.toLowerCase().trim()
+  );
+  if (idx === -1) {
+    return res.status(404).json({ error: 'Documento não encontrado ou sem permissão.' });
+  }
+  db.documents.splice(idx, 1);
+  writeDB(db);
+  res.json({ success: true });
+});
+
+// 2. Gerar um PDF de exemplo (requer proprietário logado ou dados válidos)
 app.post('/api/documents/sample', async (req, res) => {
   try {
-    const { ownerName, ownerEmail, title } = req.body;
-    if (!ownerName || !ownerEmail) {
-      return res.status(400).json({ error: 'Informe o nome e o e-mail do proprietário.' });
+    const owner = verifyOwnerToken(req);
+    if (!owner) {
+      return res.status(401).json({ error: 'Faça login com o Google como proprietário para disponibilizar documentos.' });
     }
+    const ownerName = req.body.ownerName || owner.name;
+    const ownerEmail = owner.email;
+    const { title } = req.body;
 
     const docId = crypto.randomBytes(6).toString('hex');
     const docTitle = title || 'Contrato de Prestação de Serviços - Exemplo';
@@ -746,7 +813,7 @@ app.post('/api/documents/sample', async (req, res) => {
       '4. ENVIO AUTOMATICO',
       'Apos a conclusao da assinatura, o documento assinado juntamente com o Manifesto de',
       'Certificacao Criptografica (SHA-256) sera encaminhado automaticamente ao proprietario',
-      'e, opcionalmente, ao e-mail do assinante.'
+      'e ao e-mail do assinante.'
     ];
 
     let y = height - 130;
@@ -773,7 +840,7 @@ app.post('/api/documents/sample', async (req, res) => {
       id: docId,
       title: docTitle,
       ownerName: ownerName.trim(),
-      ownerEmail: ownerEmail.trim(),
+      ownerEmail: ownerEmail.trim().toLowerCase(),
       originalFileName: 'Documento_Exemplo.pdf',
       originalPath: origPath,
       signedPath: signedPath,
@@ -799,23 +866,26 @@ app.post('/api/documents/sample', async (req, res) => {
   }
 });
 
-// 3. Upload de PDF pelo Proprietário
+// 3. Upload de PDF pelo Proprietário Autenticado
 app.post('/api/documents', upload.single('pdfFile'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Por favor, selecione um arquivo PDF válido.' });
     }
 
-    const { ownerName, ownerEmail, title } = req.body;
-    if (!ownerName || !ownerEmail) {
-      return res.status(400).json({ error: 'O nome e o e-mail do proprietário são obrigatórios.' });
+    const owner = verifyOwnerToken(req);
+    if (!owner) {
+      return res.status(401).json({ error: 'Faça login com o Google como proprietário para disponibilizar documentos.' });
     }
+
+    const ownerName = (req.body.ownerName || owner.name || '').trim();
+    const ownerEmail = owner.email.trim().toLowerCase();
+    const { title } = req.body;
 
     const docId = req.generatedDocId;
     const origPath = req.file.path;
     const signedPath = path.join(UPLOADS_SIGNED_DIR, `${docId}.pdf`);
 
-    // Inicialmente o arquivo assinado é uma cópia do original
     fs.copyFileSync(origPath, signedPath);
 
     const origHash = computeFileHash(origPath);
@@ -825,8 +895,8 @@ app.post('/api/documents', upload.single('pdfFile'), (req, res) => {
     const newDoc = {
       id: docId,
       title: cleanTitle,
-      ownerName: ownerName.trim(),
-      ownerEmail: ownerEmail.trim(),
+      ownerName,
+      ownerEmail,
       originalFileName: req.file.originalname,
       originalPath: origPath,
       signedPath: signedPath,
@@ -857,13 +927,17 @@ app.get('/assinar/:id', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'assinar.html'));
 });
 
-// 4. Obter detalhes de um documento pelo ID
+// 4. Obter detalhes públicos de um documento pelo ID (preserva sigilo das assinaturas de terceiros!)
 app.get('/api/documents/:id', (req, res) => {
   const db = readDB();
   const doc = db.documents.find((d) => d.id === req.params.id);
   if (!doc) {
     return res.status(404).json({ error: 'Documento não encontrado.' });
   }
+
+  const owner = verifyOwnerToken(req);
+  const isOwner = owner && (doc.ownerEmail || '').toLowerCase().trim() === owner.email.toLowerCase().trim();
+
   res.json({
     document: {
       id: doc.id,
@@ -875,12 +949,16 @@ app.get('/api/documents/:id', (req, res) => {
       signedHash: doc.signedHash,
       createdAt: doc.createdAt,
       createdAtFormatted: doc.createdAtFormatted,
-      signatures: doc.signatures
+      signaturesCount: doc.signatures.length,
+      // Só retorna a lista de assinaturas para o proprietário autenticado!
+      signatures: isOwner ? doc.signatures : []
     }
   });
 });
 
-// 5. Visualizar / Baixar o PDF (Por padrão sempre retorna o documento ORIGINAL em branco; se informar ?sigId=..., retorna o PDF exclusivo daquela assinatura)
+// 5. Visualizar / Baixar o PDF
+// - Documento original em branco: público para quem tem o link de assinatura
+// - Documento assinado (?sigId=...): RESTRITO ao proprietário logado (via token) ou ao próprio signatário (via key)
 app.get('/api/documents/:id/pdf', (req, res) => {
   const db = readDB();
   const doc = db.documents.find((d) => d.id === req.params.id);
@@ -893,11 +971,21 @@ app.get('/api/documents/:id/pdf', (req, res) => {
 
   if (req.query.sigId) {
     const sig = doc.signatures.find((s) => s.id === req.query.sigId);
-    if (sig && sig.signedPath && fs.existsSync(sig.signedPath)) {
-      targetPath = sig.signedPath;
-      const safeSigner = sig.fullName.replace(/[^a-zA-Z0-9_-]/g, '_');
-      suffix = `_Assinado_${safeSigner}`;
+    if (!sig || !sig.signedPath || !fs.existsSync(sig.signedPath)) {
+      return res.status(404).send('Assinatura não encontrada.');
     }
+
+    const owner = verifyOwnerToken(req);
+    const isOwner = owner && (doc.ownerEmail || '').toLowerCase().trim() === owner.email.toLowerCase().trim();
+    const hasValidSignerKey = sig.accessKey && req.query.key === sig.accessKey;
+
+    if (!isOwner && !hasValidSignerKey) {
+      return res.status(403).send('Acesso restrito: Somente o proprietário autenticado ou o signatário podem acessar este documento assinado.');
+    }
+
+    targetPath = sig.signedPath;
+    const safeSigner = sig.fullName.replace(/[^a-zA-Z0-9_-]/g, '_');
+    suffix = `_Assinado_${safeSigner}`;
   }
 
   if (!fs.existsSync(targetPath)) {
@@ -947,7 +1035,6 @@ app.post('/api/documents/:id/sign', async (req, res) => {
       return res.status(400).json({ error: 'Por favor, informe um CPF válido.' });
     }
 
-    // Se o usuário autenticou com Google e por algum motivo o campo email veio vazio, aproveita o e-mail da conta Google
     let finalEmail = (email || '').trim();
     if (!finalEmail && authAccount && authAccount.includes('@')) {
       finalEmail = authAccount.split(' ')[0].trim();
@@ -974,8 +1061,11 @@ app.post('/api/documents/:id/sign', async (req, res) => {
       .update(`${doc.originalHash}|${fullName.trim()}|${formattedCpf}|${authProvider}|${now.toISOString()}`)
       .digest('hex');
 
+    const accessKey = crypto.randomBytes(16).toString('hex');
+
     const signatureRecord = {
       id: crypto.randomBytes(6).toString('hex'),
+      accessKey,
       authProvider,
       authAccount: authAccount || (authProvider === 'govbr' ? `Gov.br (${formattedCpf})` : finalEmail),
       fullName: fullName.trim(),
@@ -1005,8 +1095,8 @@ app.post('/api/documents/:id/sign', async (req, res) => {
       success: true,
       signature: signatureRecord,
       emailResults,
-      downloadUrl: `/api/documents/${doc.id}/pdf?sigId=${signatureRecord.id}&download=1`,
-      viewSignedUrl: `/api/documents/${doc.id}/pdf?sigId=${signatureRecord.id}`
+      downloadUrl: `/api/documents/${doc.id}/pdf?sigId=${signatureRecord.id}&key=${accessKey}&download=1`,
+      viewSignedUrl: `/api/documents/${doc.id}/pdf?sigId=${signatureRecord.id}&key=${accessKey}`
     });
   } catch (err) {
     console.error('Erro ao assinar documento:', err);
@@ -1022,7 +1112,7 @@ app.get('/api/public-config', (req, res) => {
   });
 });
 
-// 8. Verificar Token Oficial do Google Auth (Google Identity Services)
+// 8. Verificar Token Oficial do Google Auth (Google Identity Services) e emitir token do proprietário
 app.post('/api/auth/google-verify', async (req, res) => {
   try {
     const { credential } = req.body;
@@ -1039,14 +1129,19 @@ app.post('/api/auth/google-verify', async (req, res) => {
       return res.status(401).json({ error: 'Token do Google inválido ou expirado.' });
     }
 
+    const userObj = {
+      email: payload.email.toLowerCase().trim(),
+      name: payload.name || payload.email.split('@')[0],
+      picture: payload.picture || null,
+      emailVerified: payload.email_verified === 'true' || payload.email_verified === true
+    };
+
+    const ownerToken = createOwnerToken(userObj);
+
     res.json({
       success: true,
-      user: {
-        email: payload.email,
-        name: payload.name || payload.email.split('@')[0],
-        picture: payload.picture || null,
-        emailVerified: payload.email_verified === 'true' || payload.email_verified === true
-      }
+      user: userObj,
+      ownerToken
     });
   } catch (err) {
     res.status(500).json({ error: 'Falha ao validar login do Google: ' + err.message });

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>BiaAuth — Plataforma Gratuita de Assinatura Digital</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Inter', sans-serif; }
@@ -14,7 +15,7 @@
 <body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
 
   <!-- Cabeçalho -->
-  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-600 flex items-center justify-center text-white font-extrabold text-xl shadow-md">
@@ -29,57 +30,143 @@
         </div>
       </div>
 
-      <div class="flex items-center gap-3">
-        <button onclick="openEmailModal()" class="inline-flex items-center gap-2 text-xs sm:text-sm font-medium px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition shadow-sm">
+      <!-- Área Direita do Cabeçalho: Status do Proprietário Logado + Configurações -->
+      <div class="flex flex-wrap items-center gap-3">
+        <!-- Badge do Proprietário Autenticado (Oculto quando deslogado) -->
+        <div id="headerOwnerProfile" class="hidden items-center gap-2.5 px-3 py-1.5 rounded-xl bg-blue-50 border border-blue-200">
+          <img id="headerOwnerAvatar" src="" alt="" class="hidden w-7 h-7 rounded-full border border-blue-300" />
+          <div class="text-left">
+            <p id="headerOwnerName" class="text-xs font-bold text-slate-900 leading-tight"></p>
+            <p id="headerOwnerEmail" class="text-[11px] text-blue-700 leading-tight"></p>
+          </div>
+          <button onclick="logoutOwner()" class="ml-2 text-xs font-semibold text-red-600 hover:text-red-800 px-2 py-1 rounded hover:bg-red-50 transition" title="Sair da conta">
+            Sair
+          </button>
+        </div>
+
+        <button id="configBtnHeader" onclick="openEmailModal()" class="hidden items-center gap-2 text-xs sm:text-sm font-medium px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition shadow-2xs">
           <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
           </svg>
-          <span id="smtpStatusBadge">Configurar E-mail Automático</span>
+          <span id="smtpStatusBadge">Configurações</span>
         </button>
       </div>
     </div>
   </header>
 
   <!-- Conteúdo Principal -->
-  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full space-y-8">
 
-    <!-- Faixa Explicativa do Fluxo -->
-    <div class="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 rounded-2xl p-6 sm:p-8 text-white shadow-lg mb-8">
-      <h2 class="text-xl sm:text-2xl font-bold mb-2">Como funciona a assinatura digital no BiaAuth?</h2>
-      <p class="text-blue-100 text-sm sm:text-base mb-6">Disponibilize seu PDF em segundos, envie o link e receba o documento assinado automaticamente no seu e-mail.</p>
-      
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
-          <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs mb-2">1</div>
-          <p class="font-semibold text-white">Envie o PDF</p>
-          <p class="text-blue-100 text-xs mt-1">O proprietário faz upload do PDF e informa seu e-mail para recebimento.</p>
+    <!-- ================================================================== -->
+    <!-- MÓDULO EXPLICATIVO DA PLATAFORMA                                   -->
+    <!-- ================================================================== -->
+    <section class="bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 rounded-3xl p-6 sm:p-10 text-white shadow-xl relative overflow-hidden">
+      <div class="max-w-3xl">
+        <span class="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/15 text-blue-100 mb-4 border border-white/20">
+          🔒 Sigilo, Validade Jurídica e Gratuidade
+        </span>
+        <h2 class="text-2xl sm:text-3xl font-extrabold tracking-tight leading-tight">
+          Assinatura Digital Simples, Segura e com Proteção Total de Privacidade
+        </h2>
+        <p class="text-blue-100 text-sm sm:text-base mt-3 leading-relaxed">
+          O <strong>BiaAuth</strong> permite que você disponibilize qualquer documento em PDF, compartilhe um link único permanente e receba cada via assinada individualmente no seu e-mail — com certificado criptográfico <strong>SHA-256</strong> e proteção exclusiva por login Google.
+        </p>
+      </div>
+
+      <!-- Os 4 Passos Explicativos -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm mt-8">
+        <div class="bg-white/10 backdrop-blur-xs rounded-2xl p-5 border border-white/15">
+          <div class="w-8 h-8 rounded-xl bg-blue-500 text-white font-extrabold flex items-center justify-center text-sm mb-3 shadow-xs">1</div>
+          <p class="font-bold text-white text-base">Login do Proprietário</p>
+          <p class="text-blue-100 text-xs mt-1.5 leading-relaxed">
+            O proprietário entra com sua conta <strong>Google</strong> e faz upload do PDF. Apenas você tem acesso aos seus documentos e assinaturas.
+          </p>
         </div>
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
-          <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs mb-2">2</div>
-          <p class="font-semibold text-white">Compartilhe o Link</p>
-          <p class="text-blue-100 text-xs mt-1">Copie o link exclusivo gerado ou envie direto por WhatsApp / E-mail.</p>
+
+        <div class="bg-white/10 backdrop-blur-xs rounded-2xl p-5 border border-white/15">
+          <div class="w-8 h-8 rounded-xl bg-blue-500 text-white font-extrabold flex items-center justify-center text-sm mb-3 shadow-xs">2</div>
+          <p class="font-bold text-white text-base">Link Único Permanente</p>
+          <p class="text-blue-100 text-xs mt-1.5 leading-relaxed">
+            Compartilhe o link por WhatsApp ou e-mail com quantas pessoas quiser. O documento original permanece sempre em branco para cada novo signatário.
+          </p>
         </div>
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
-          <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs mb-2">3</div>
-          <p class="font-semibold text-white">Login Gmail ou Gov.br</p>
-          <p class="text-blue-100 text-xs mt-1">O assinante abre o PDF, faz login com Google ou Gov.br e informa Nome e CPF.</p>
+
+        <div class="bg-white/10 backdrop-blur-xs rounded-2xl p-5 border border-white/15">
+          <div class="w-8 h-8 rounded-xl bg-blue-500 text-white font-extrabold flex items-center justify-center text-sm mb-3 shadow-xs">3</div>
+          <p class="font-bold text-white text-base">Identificação Segura</p>
+          <p class="text-blue-100 text-xs mt-1.5 leading-relaxed">
+            O signatário abre o link, autentica-se com <strong>Gmail (Google)</strong> ou <strong>gov.br</strong>, preenche Nome Completo, CPF válido e rubrica.
+          </p>
         </div>
-        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
-          <div class="w-7 h-7 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-xs mb-2">4</div>
-          <p class="font-semibold text-white">Envio Obrigatório</p>
-          <p class="text-blue-100 text-xs mt-1">Gera uma via individual exclusiva e envia obrigatoriamente ao proprietário e ao signatário.</p>
+
+        <div class="bg-white/10 backdrop-blur-xs rounded-2xl p-5 border border-white/15">
+          <div class="w-8 h-8 rounded-xl bg-emerald-500 text-white font-extrabold flex items-center justify-center text-sm mb-3 shadow-xs">4</div>
+          <p class="font-bold text-white text-base">Envio Obrigatório e Sigiloso</p>
+          <p class="text-blue-100 text-xs mt-1.5 leading-relaxed">
+            O PDF assinado individualmente é enviado na hora para o <strong>e-mail do proprietário</strong> e para o <strong>e-mail do signatário</strong>.
+          </p>
         </div>
       </div>
-    </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+      <!-- Pilares de Segurança e Privacidade -->
+      <div class="mt-6 pt-5 border-t border-white/15 grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs text-blue-100">
+        <div class="flex items-center gap-2.5">
+          <span class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center font-bold shrink-0">✓</span>
+          <span><strong>Privacidade Garantida:</strong> Outras pessoas nunca têm acesso aos documentos assinados por terceiros.</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center font-bold shrink-0">✓</span>
+          <span><strong>Integridade Criptográfica:</strong> Carimbo de tempo, IP e Hash SHA-256 em cada via individual.</span>
+        </div>
+        <div class="flex items-center gap-2.5">
+          <span class="w-6 h-6 rounded-full bg-emerald-500/20 border border-emerald-400/40 text-emerald-300 flex items-center justify-center font-bold shrink-0">✓</span>
+          <span><strong>Base Legal:</strong> Em conformidade com a MP nº 2.200-2/2001 e Lei nº 14.063/2020.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- TELA DE LOGIN DO PROPRIETÁRIO (EXIBIDA QUANDO NÃO ESTÁ LOGADO)     -->
+    <!-- ================================================================== -->
+    <section id="ownerLoginSection" class="max-w-xl mx-auto bg-white rounded-3xl border border-slate-200 shadow-lg p-8 sm:p-10 text-center">
+      <div class="w-16 h-16 rounded-2xl bg-blue-50 border border-blue-200 text-blue-700 mx-auto flex items-center justify-center mb-5 shadow-2xs">
+        <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/>
+        </svg>
+      </div>
+
+      <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Área Restrita do Proprietário</span>
+      <h3 class="text-2xl font-extrabold text-slate-900 mt-1">Entre com sua Conta Google</h3>
+      <p class="text-sm text-slate-600 mt-2.5 leading-relaxed">
+        Para proteger o sigilo dos seus documentos e garantir que <strong>somente você</strong> tenha acesso às vias assinadas, faça login abaixo com sua conta Google:
+      </p>
+
+      <!-- Botão Oficial do Google Identity Services -->
+      <div class="mt-7 flex flex-col items-center justify-center gap-3">
+        <div id="ownerGoogleBtnContainer" class="flex justify-center min-h-[44px]"></div>
+        <p id="ownerLoginLoadingMsg" class="text-xs text-slate-400">Carregando autenticação segura do Google...</p>
+      </div>
+
+      <div class="mt-8 pt-6 border-t border-slate-100 text-xs text-slate-500 space-y-1.5 text-left bg-slate-50 p-4 rounded-2xl">
+        <p class="font-semibold text-slate-700">🔒 Por que o login do proprietário é obrigatório?</p>
+        <p>• Vincula os documentos disponibilizados exclusivamente ao seu e-mail Google autenticado.</p>
+        <p>• Impede que terceiros visualizem ou baixem contratos e termos assinados pelos seus signatários.</p>
+        <p>• Envia automaticamente cada PDF assinado diretamente para o seu e-mail autenticado.</p>
+      </div>
+    </section>
+
+    <!-- ================================================================== -->
+    <!-- PAINEL PRIVADO DO PROPRIETÁRIO (EXIBIDO APÓS LOGIN COM GOOGLE)     -->
+    <!-- ================================================================== -->
+    <section id="ownerDashboardSection" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
 
       <!-- Coluna Esquerda: Formulário para Disponibilizar Documento -->
-      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs p-6 sm:p-8">
         <div class="flex items-center justify-between mb-6">
           <div>
-            <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Passo 1 • Área do Proprietário</span>
-            <h3 class="text-xl font-bold text-slate-900 mt-0.5">Disponibilizar Documento (PDF)</h3>
+            <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Passo 1 • Área Privada do Proprietário</span>
+            <h3 class="text-xl font-bold text-slate-900 mt-0.5">Disponibilizar Novo Documento (PDF)</h3>
           </div>
         </div>
 
@@ -91,15 +178,16 @@
                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm transition" />
             </div>
             <div>
-              <label class="block text-sm font-semibold text-slate-700 mb-1.5">Seu E-mail (Receberá o PDF) <span class="text-red-500">*</span></label>
-              <input type="email" id="ownerEmail" required placeholder="seuemail@gmail.com"
-                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm transition" />
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">Conta Google Autenticada <span class="text-emerald-600 text-xs">(Verificada)</span></label>
+              <input type="email" id="ownerEmail" readonly required
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 bg-slate-100 text-slate-600 cursor-not-allowed outline-none text-sm font-medium"
+                title="E-mail vinculado à sua conta Google autenticada" />
             </div>
           </div>
 
           <div>
             <label class="block text-sm font-semibold text-slate-700 mb-1.5">Título do Documento <span class="text-slate-400 font-normal">(opcional)</span></label>
-            <input type="text" id="docTitle" placeholder="Ex: Contrato de Locação / Termo de Adesão"
+            <input type="text" id="docTitle" placeholder="Ex: Contrato de Locação / Termo de Consentimento"
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm transition" />
           </div>
 
@@ -133,14 +221,14 @@
 
             <button type="button" onclick="createSampleDocument()" id="sampleBtn"
               class="py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
-              title="Cria um contrato PDF de exemplo para você testar agora mesmo sem precisar procurar um PDF no computador">
+              title="Cria um contrato PDF de exemplo para você testar agora mesmo">
               <span>⚡ Testar com PDF de Exemplo</span>
             </button>
           </div>
         </form>
 
         <!-- Resultado: Link Gerado para Enviar aos Assinantes -->
-        <div id="shareResultBox" class="hidden mt-8 p-6 rounded-2xl bg-emerald-50 border-2 border-emerald-300 shadow-sm">
+        <div id="shareResultBox" class="hidden mt-8 p-6 rounded-2xl bg-emerald-50 border-2 border-emerald-300 shadow-xs">
           <div class="flex items-start gap-3">
             <div class="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
               <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
@@ -148,7 +236,7 @@
               </svg>
             </div>
             <div class="flex-1 min-w-0">
-              <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Passo 2 • Link Pronto para Compartilhar</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Passo 2 • Link Permanente de Assinatura</span>
               <h4 class="text-lg font-bold text-slate-900 mt-0.5" id="shareDocTitle">Documento disponibilizado!</h4>
               <p class="text-xs text-slate-600 mt-1">Envie o link abaixo para as pessoas que devem assinar este documento:</p>
 
@@ -163,7 +251,7 @@
 
               <div class="mt-4 flex flex-wrap gap-2.5">
                 <a id="openSignLinkBtn" href="#" target="_blank"
-                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition">
+                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition">
                   <span>Abrir Página de Assinatura</span>
                   <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
@@ -171,7 +259,7 @@
                 </a>
 
                 <a id="whatsappShareBtn" href="#" target="_blank"
-                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition">
+                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-xs sm:text-sm shadow-xs transition">
                   <span>Enviar no WhatsApp</span>
                 </a>
               </div>
@@ -180,24 +268,27 @@
         </div>
       </div>
 
-      <!-- Coluna Direita: Lista de Documentos Disponibilizados e Assinaturas -->
-      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+      <!-- Coluna Direita: Lista Exclusiva dos Documentos deste Proprietário -->
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs p-6">
         <div class="flex items-center justify-between mb-4">
           <div>
-            <h3 class="text-lg font-bold text-slate-900">Documentos Disponibilizados</h3>
-            <p class="text-xs text-slate-500">Acompanhe os links e baixe os PDFs assinados</p>
+            <div class="flex items-center gap-1.5">
+              <span class="text-emerald-600 text-sm">🔒</span>
+              <h3 class="text-lg font-bold text-slate-900">Meus Documentos</h3>
+            </div>
+            <p class="text-xs text-slate-500">Visíveis apenas para a sua conta Google</p>
           </div>
           <button onclick="loadDocuments()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
             ↻ Atualizar
           </button>
         </div>
 
-        <div id="documentsList" class="space-y-3 max-h-[540px] overflow-y-auto pr-1">
-          <p class="text-sm text-slate-400 py-8 text-center">Carregando documentos...</p>
+        <div id="documentsList" class="space-y-3 max-h-[560px] overflow-y-auto pr-1">
+          <p class="text-sm text-slate-400 py-8 text-center">Carregando seus documentos...</p>
         </div>
       </div>
 
-    </div>
+    </section>
   </main>
 
   <!-- Modal de Configuração de E-mail e Login Google Oficial -->
@@ -210,7 +301,7 @@
 
       <form id="smtpForm" onsubmit="saveEmailSettings(event)" class="space-y-4 text-sm">
 
-        <!-- 1. Envio Gratuito pelo Gmail via Google Apps Script (Funciona no Render Free!) -->
+        <!-- 1. Envio Gratuito pelo Gmail via Google Apps Script -->
         <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
           <div class="flex items-center justify-between">
             <label class="block text-xs font-bold uppercase tracking-wider text-emerald-900">
@@ -221,7 +312,7 @@
             </button>
           </div>
           <p class="text-xs text-slate-600 leading-relaxed">
-            Cole abaixo a URL do seu <strong>Google Apps Script</strong> (implantado como <em>App da Web</em> com acesso para <em>Qualquer pessoa</em>) para enviar os PDFs assinados direto pelo seu Gmail:
+            URL do seu <strong>Google Apps Script</strong> (implantado como <em>App da Web</em> com acesso para <em>Qualquer pessoa</em>):
           </p>
           <input type="url" id="googleScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
             class="w-full px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs font-mono" />
@@ -242,7 +333,7 @@
             2. Login Oficial do Google (Google Client ID)
           </label>
           <p class="text-xs text-slate-600 leading-relaxed">
-            Cole aqui o seu <strong>Client ID</strong> do Google Cloud para abrir a janela oficial de autenticação do Google ao lado do botão gov.br:
+            Client ID do Google Cloud para autenticação oficial:
           </p>
           <input type="text" id="googleClientId" placeholder="Ex: 123456789-abc...apps.googleusercontent.com"
             class="w-full px-3 py-2 rounded-lg border border-blue-300 bg-white text-xs font-mono" />
@@ -263,21 +354,128 @@
   </div>
 
   <footer class="py-5 text-center text-xs text-slate-400 border-t border-slate-200 bg-white mt-12">
-    BiaAuth — Plataforma Gratuita de Assinatura Eletrônica de Documentos PDF
+    BiaAuth — Plataforma Gratuita de Assinatura Eletrônica de Documentos PDF • Acesso Protegido por Login Google
   </footer>
 
   <script>
-    // Salvar dados do proprietário localmente para facilitar envios futuros
-    window.addEventListener('DOMContentLoaded', () => {
-      const savedName = localStorage.getItem('bia_owner_name');
-      const savedEmail = localStorage.getItem('bia_owner_email');
-      if (savedName) document.getElementById('ownerName').value = savedName;
-      if (savedEmail) document.getElementById('ownerEmail').value = savedEmail;
+    let ownerSession = null; // { token, user: { email, name, picture } }
 
+    window.addEventListener('DOMContentLoaded', () => {
+      restoreOwnerSession();
       setupDragAndDrop();
-      loadDocuments();
       checkSmtpSettings();
+      initOwnerGoogleSignIn();
     });
+
+    function restoreOwnerSession() {
+      try {
+        const raw = localStorage.getItem('bia_owner_session');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && parsed.token && parsed.user && parsed.user.email) {
+            ownerSession = parsed;
+          }
+        }
+      } catch (e) {}
+      updateOwnerUI();
+    }
+
+    function updateOwnerUI() {
+      const loginSection = document.getElementById('ownerLoginSection');
+      const dashSection = document.getElementById('ownerDashboardSection');
+      const headerProfile = document.getElementById('headerOwnerProfile');
+      const configBtn = document.getElementById('configBtnHeader');
+
+      if (ownerSession && ownerSession.token && ownerSession.user) {
+        loginSection.classList.add('hidden');
+        dashSection.classList.remove('hidden');
+        headerProfile.classList.remove('hidden');
+        headerProfile.classList.add('flex');
+        configBtn.classList.remove('hidden');
+        configBtn.classList.add('inline-flex');
+
+        document.getElementById('headerOwnerName').textContent = ownerSession.user.name;
+        document.getElementById('headerOwnerEmail').textContent = ownerSession.user.email;
+
+        const avatar = document.getElementById('headerOwnerAvatar');
+        if (ownerSession.user.picture) {
+          avatar.src = ownerSession.user.picture;
+          avatar.classList.remove('hidden');
+        } else {
+          avatar.classList.add('hidden');
+        }
+
+        document.getElementById('ownerName').value = ownerSession.user.name;
+        document.getElementById('ownerEmail').value = ownerSession.user.email;
+
+        loadDocuments();
+      } else {
+        loginSection.classList.remove('hidden');
+        dashSection.classList.add('hidden');
+        headerProfile.classList.add('hidden');
+        headerProfile.classList.remove('flex');
+        configBtn.classList.add('hidden');
+        configBtn.classList.remove('inline-flex');
+      }
+    }
+
+    function logoutOwner() {
+      ownerSession = null;
+      localStorage.removeItem('bia_owner_session');
+      document.getElementById('shareResultBox').classList.add('hidden');
+      updateOwnerUI();
+    }
+
+    async function initOwnerGoogleSignIn() {
+      try {
+        const res = await fetch('/api/public-config');
+        const cfg = await res.json();
+        const trySetup = (attempt = 0) => {
+          if (window.google && window.google.accounts && cfg.googleClientId) {
+            window.google.accounts.id.initialize({
+              client_id: cfg.googleClientId,
+              callback: handleOwnerGoogleCallback
+            });
+            const container = document.getElementById('ownerGoogleBtnContainer');
+            window.google.accounts.id.renderButton(container, {
+              theme: 'filled_blue',
+              size: 'large',
+              text: 'continue_with',
+              shape: 'pill',
+              locale: 'pt-BR',
+              width: 280
+            });
+            document.getElementById('ownerLoginLoadingMsg').classList.add('hidden');
+          } else if (attempt < 10) {
+            setTimeout(() => trySetup(attempt + 1), 500);
+          }
+        };
+        trySetup();
+      } catch (e) {}
+    }
+
+    async function handleOwnerGoogleCallback(response) {
+      try {
+        const res = await fetch('/api/auth/google-verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ credential: response.credential })
+        });
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Falha na autenticação com o Google.');
+        }
+
+        ownerSession = {
+          token: data.ownerToken,
+          user: data.user
+        };
+        localStorage.setItem('bia_owner_session', JSON.stringify(ownerSession));
+        updateOwnerUI();
+      } catch (err) {
+        alert('Erro ao fazer login com Google: ' + err.message);
+      }
+    }
 
     function handleFileSelect(input) {
       const display = document.getElementById('fileNameDisplay');
@@ -292,6 +490,7 @@
     function setupDragAndDrop() {
       const dz = document.getElementById('dropZone');
       const fileInput = document.getElementById('pdfFile');
+      if (!dz) return;
 
       ['dragenter', 'dragover'].forEach(evt => {
         dz.addEventListener(evt, (e) => {
@@ -320,8 +519,14 @@
       const errBox = document.getElementById('uploadError');
       errBox.classList.add('hidden');
 
+      if (!ownerSession || !ownerSession.token) {
+        errBox.textContent = 'Faça login com sua conta Google antes de enviar documentos.';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
       const ownerName = document.getElementById('ownerName').value.trim();
-      const ownerEmail = document.getElementById('ownerEmail').value.trim();
+      const ownerEmail = ownerSession.user.email;
       const title = document.getElementById('docTitle').value.trim();
       const fileInput = document.getElementById('pdfFile');
 
@@ -330,9 +535,6 @@
         errBox.classList.remove('hidden');
         return;
       }
-
-      localStorage.setItem('bia_owner_name', ownerName);
-      localStorage.setItem('bia_owner_email', ownerEmail);
 
       const formData = new FormData();
       formData.append('ownerName', ownerName);
@@ -348,6 +550,9 @@
       try {
         const res = await fetch('/api/documents', {
           method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${ownerSession.token}`
+          },
           body: formData
         });
         const data = await res.json();
@@ -371,21 +576,14 @@
       const errBox = document.getElementById('uploadError');
       errBox.classList.add('hidden');
 
-      let ownerName = document.getElementById('ownerName').value.trim();
-      let ownerEmail = document.getElementById('ownerEmail').value.trim();
+      if (!ownerSession || !ownerSession.token) {
+        alert('Faça login com o Google primeiro.');
+        return;
+      }
+
+      const ownerName = document.getElementById('ownerName').value.trim() || ownerSession.user.name;
+      const ownerEmail = ownerSession.user.email;
       const title = document.getElementById('docTitle').value.trim() || 'Contrato de Prestação de Serviços';
-
-      if (!ownerName) {
-        ownerName = 'Proprietário Demonstração';
-        document.getElementById('ownerName').value = ownerName;
-      }
-      if (!ownerEmail) {
-        ownerEmail = 'proprietario@exemplo.com.br';
-        document.getElementById('ownerEmail').value = ownerEmail;
-      }
-
-      localStorage.setItem('bia_owner_name', ownerName);
-      localStorage.setItem('bia_owner_email', ownerEmail);
 
       const sampleBtn = document.getElementById('sampleBtn');
       sampleBtn.disabled = true;
@@ -394,7 +592,10 @@
       try {
         const res = await fetch('/api/documents/sample', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${ownerSession.token}`
+          },
           body: JSON.stringify({ ownerName, ownerEmail, title })
         });
         const data = await res.json();
@@ -437,21 +638,47 @@
       }
     }
 
+    async function deleteDocument(docId, docTitle) {
+      if (!confirm(`Deseja realmente remover o documento "${docTitle}" da sua lista?`)) return;
+      try {
+        const res = await fetch(`/api/documents/${docId}`, {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${ownerSession.token}`
+          }
+        });
+        if (res.ok) {
+          loadDocuments();
+        }
+      } catch (e) {}
+    }
+
     async function loadDocuments() {
       const container = document.getElementById('documentsList');
+      if (!ownerSession || !ownerSession.token) {
+        container.innerHTML = `<p class="text-xs text-slate-400 text-center py-6">Faça login com o Google para ver seus documentos.</p>`;
+        return;
+      }
+
       try {
-        const res = await fetch('/api/documents');
+        const res = await fetch('/api/documents', {
+          headers: {
+            'Authorization': `Bearer ${ownerSession.token}`
+          }
+        });
         const data = await res.json();
 
         if (!data.documents || data.documents.length === 0) {
           container.innerHTML = `
             <div class="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl">
-              <p class="text-sm font-medium text-slate-500">Nenhum documento disponibilizado ainda.</p>
+              <p class="text-sm font-medium text-slate-500">Você ainda não disponibilizou documentos com esta conta (${ownerSession.user.email}).</p>
               <p class="text-xs text-slate-400 mt-1">Faça upload de um PDF ao lado ou clique em "Testar com PDF de Exemplo".</p>
             </div>
           `;
           return;
         }
+
+        const encodedToken = encodeURIComponent(ownerSession.token);
 
         container.innerHTML = data.documents.map(doc => {
           const signUrl = `${window.location.origin}/assinar/${doc.id}`;
@@ -465,7 +692,7 @@
 
           const signersHtml = isSigned
             ? `<div class="mt-2.5 pt-2.5 border-t border-slate-100 space-y-1.5">
-                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Vias Individuais Assinadas:</p>
+                <p class="text-[11px] font-bold uppercase tracking-wider text-slate-400">Vias Individuais Assinadas (Acesso Exclusivo):</p>
                 ${doc.signatures.map(s => `
                   <div class="flex items-center justify-between gap-2 text-xs text-slate-600 bg-white p-2 rounded-lg border border-slate-200">
                     <div class="min-w-0">
@@ -476,7 +703,7 @@
                       <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${s.authProvider === 'govbr' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-700'}">
                         ${s.authProvider === 'govbr' ? 'Gov.br' : 'Gmail'}
                       </span>
-                      <a href="/api/documents/${doc.id}/pdf?sigId=${s.id}&download=1"
+                      <a href="/api/documents/${doc.id}/pdf?sigId=${s.id}&token=${encodedToken}&download=1"
                         class="px-2 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-semibold transition"
                         title="Baixar PDF assinado exclusivamente por ${s.fullName}">
                         ⬇ PDF
@@ -505,7 +732,7 @@
               <div class="mt-3 pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center gap-2">
                 <a href="${signUrl}" target="_blank"
                   class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
-                  Abrir Link de Assinatura
+                  Abrir Link
                 </a>
                 <button onclick="copyShareLink('${signUrl}')"
                   class="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 transition">
@@ -513,8 +740,13 @@
                 </button>
                 <a href="/api/documents/${doc.id}/pdf?download=1"
                   class="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 transition ml-auto">
-                  ⬇ PDF Original
+                  ⬇ Original
                 </a>
+                <button onclick="deleteDocument('${doc.id}', '${doc.title.replace(/'/g, '')}')"
+                  class="text-xs font-medium px-2 py-1.5 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 transition"
+                  title="Excluir documento">
+                  🗑️
+                </button>
               </div>
             </div>
           `;
@@ -531,12 +763,6 @@
         const data = await res.json();
         document.getElementById('googleScriptUrl').value = data.googleScriptUrl || '';
         document.getElementById('googleClientId').value = data.googleClientId || '';
-        const badge = document.getElementById('smtpStatusBadge');
-        if (data.googleScriptUrl) {
-          badge.textContent = '✓ E-mail Gmail e Google Auth Configurados';
-        } else {
-          badge.textContent = 'Configurar Gmail e Login Google';
-        }
       } catch (e) {}
     }
 
@@ -557,7 +783,7 @@
   }
 }`;
       navigator.clipboard.writeText(code);
-      alert('Código do Google Apps Script copiado! Agora basta colar em script.google.com e clicar em Implantar -> Nova implantação -> App da Web (Acesso: Qualquer pessoa).');
+      alert('Código do Google Apps Script copiado!');
     }
 
     async function sendTestEmailNow() {
@@ -565,7 +791,7 @@
       const btn = document.getElementById('testEmailBtn');
       const googleScriptUrl = document.getElementById('googleScriptUrl').value.trim();
       const googleClientId = document.getElementById('googleClientId').value.trim();
-      const testEmail = document.getElementById('testEmailTarget').value.trim() || document.getElementById('ownerEmail').value.trim();
+      const testEmail = document.getElementById('testEmailTarget').value.trim() || (ownerSession && ownerSession.user.email) || '';
 
       if (!testEmail || !testEmail.includes('@')) {
         msg.className = 'text-xs font-semibold text-red-700 bg-red-50 p-2.5 rounded-lg border border-red-200';
@@ -578,7 +804,6 @@
       btn.textContent = 'Enviando...';
 
       try {
-        // Salva primeiro a URL atual
         await fetch('/api/settings/email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -596,7 +821,6 @@
         msg.className = 'text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200';
         msg.textContent = '✓ ' + data.message;
         msg.classList.remove('hidden');
-        checkSmtpSettings();
       } catch (err) {
         msg.className = 'text-xs font-semibold text-red-700 bg-red-50 p-2.5 rounded-lg border border-red-200';
         msg.textContent = 'Erro no teste: ' + err.message;
@@ -623,12 +847,11 @@
       const googleScriptUrl = document.getElementById('googleScriptUrl').value;
       const googleClientId = document.getElementById('googleClientId').value;
 
-      const res = await fetch('/api/settings/email', {
+      await fetch('/api/settings/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ googleScriptUrl, googleClientId })
       });
-      const data = await res.json();
       const msg = document.getElementById('smtpSaveMsg');
       msg.textContent = '✓ Configurações salvas com sucesso!';
       msg.classList.remove('hidden');
@@ -637,4 +860,3 @@
   </script>
 </body>
 </html>
-
