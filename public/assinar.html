@@ -76,11 +76,11 @@
 
         <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
           <span>Hash Original SHA-256: <code id="docHashDisplay" class="font-mono text-slate-700">...</code></span>
-          <span id="signaturesCountBadge" class="font-semibold text-blue-700">0 assinaturas registradas</span>
+          <span class="font-semibold text-blue-700">Processo de Assinatura Individual</span>
         </div>
       </div>
 
-      <!-- Coluna Direita (5 cols): Fluxo de Login (Google / Gov.br) + Dados do Assinante -->
+      <!-- Coluna Direita (5 cols): Fluxo de Login (Google / Gov.br) + Dados do Signatário -->
       <div class="lg:col-span-5 space-y-6">
 
         <!-- Card de Sucesso Pós-Assinatura (Oculto até assinar) -->
@@ -92,18 +92,18 @@
               </svg>
             </div>
             <div>
-              <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Assinatura Concluída</span>
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Assinatura Individual Concluída</span>
               <h3 class="text-lg font-bold text-slate-900">Documento Assinado com Sucesso!</h3>
             </div>
           </div>
 
           <p class="text-xs text-slate-600 leading-relaxed mb-4">
-            O documento PDF recebeu seu carimbo e manifesto criptográfico de assinatura digital (o visualizador ao lado já foi atualizado com a página de certificado no final do PDF).
+            A sua via exclusiva do PDF recebeu o carimbo e o certificado criptográfico da sua assinatura (exibido no visualizador ao lado). O documento original permanece intacto para outros signatários.
           </p>
 
           <!-- Status do Envio Automático de E-mails -->
           <div class="bg-slate-50 rounded-xl p-4 border border-slate-200 space-y-2.5 text-xs mb-5">
-            <h4 class="font-bold text-slate-800 uppercase tracking-wider text-[11px]">Status do Envio Automático por E-mail</h4>
+            <h4 class="font-bold text-slate-800 uppercase tracking-wider text-[11px]">Status do Envio Obrigatório por E-mail</h4>
             <div id="emailOwnerStatus" class="flex items-start gap-2 text-slate-700"></div>
             <div id="emailSignerStatus" class="flex items-start gap-2 text-slate-700"></div>
             <div id="emailPreviewLinks" class="pt-2 space-y-2"></div>
@@ -112,11 +112,11 @@
           <div class="flex flex-col sm:flex-row gap-2.5">
             <a id="finalDownloadBtn" href="#"
               class="flex-1 py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm text-center shadow-sm transition">
-              ⬇ Baixar PDF Assinado
+              ⬇ Baixar Minha Cópia Assinada (PDF)
             </a>
             <button type="button" onclick="resetForNewSigner()"
               class="py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-xs sm:text-sm transition">
-              Adicionar Outra Assinatura
+              Nova Assinatura Individual
             </button>
           </div>
         </div>
@@ -136,10 +136,7 @@
             </label>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
-              <!-- Container do Botão Oficial do Google (se Client ID configurado) -->
-              <div id="officialGoogleBtnWrap" class="hidden flex justify-center"></div>
-
-              <!-- Botão Google / Gmail (Padrão) -->
+              <!-- Botão Google / Gmail (Sempre visível e clicável) -->
               <button type="button" id="fallbackGoogleBtn" onclick="openAuthModal('google')"
                 class="flex items-center justify-center gap-2.5 py-3 px-4 rounded-xl border-2 border-slate-200 hover:border-blue-500 bg-white hover:bg-blue-50/40 text-slate-800 font-semibold text-sm transition shadow-2xs">
                 <svg class="w-5 h-5" viewBox="0 0 24 24">
@@ -158,6 +155,9 @@
                 <span class="text-xs font-medium opacity-90">Entrar com gov.br</span>
               </button>
             </div>
+
+            <!-- Container do Botão Oficial do Google (exibido embaixo se Client ID estiver configurado) -->
+            <div id="officialGoogleBtnWrap" class="hidden pt-1 flex justify-center"></div>
           </div>
 
           <!-- Status de Usuário Autenticado (Aparece após login com Gmail ou Gov.br) -->
@@ -203,22 +203,21 @@
 
             <div>
               <label class="block text-xs font-semibold text-slate-700 mb-1">
-                E-mail <span class="text-slate-400 font-normal">(facultativo)</span>
+                E-mail do Signatário <span class="text-red-500">*</span> <span class="text-slate-400 font-normal">(obrigatório p/ envio da sua cópia)</span>
               </label>
-              <input type="email" id="signerEmail" placeholder="seuemail@exemplo.com (opcional)"
+              <input type="email" id="signerEmail" required placeholder="seuemail@exemplo.com"
                 class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm" />
             </div>
 
-            <!-- Opção de receber cópia por e-mail -->
-            <div class="p-3.5 rounded-xl bg-blue-50/70 border border-blue-200/80">
-              <label class="flex items-start gap-2.5 cursor-pointer select-none">
-                <input type="checkbox" id="sendCopyCheckbox" onchange="handleSendCopyToggle()"
-                  class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 border-slate-300" />
+            <!-- Aviso de envio obrigatório para proprietário e signatário -->
+            <div class="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200/90">
+              <div class="flex items-start gap-2.5">
+                <span class="mt-0.5 text-emerald-600 font-bold text-sm">✉</span>
                 <span class="text-xs text-slate-700 leading-relaxed">
-                  <strong>Desejo receber uma cópia do documento assinado no meu e-mail</strong><br>
-                  <span class="text-[11px] text-slate-500">O proprietário sempre receberá o documento assinado automaticamente.</span>
+                  <strong>Envio Automático Obrigatório de Vias:</strong><br>
+                  <span class="text-[11px] text-slate-600">Ao assinar, uma cópia exclusiva do documento assinado será enviada obrigatoriamente para o <strong>e-mail do proprietário</strong> e outra cópia para o <strong>seu e-mail de signatário</strong>.</span>
                 </span>
-              </label>
+              </div>
             </div>
 
             <!-- Prévia da Rubrica / Assinatura Visual -->
@@ -250,14 +249,6 @@
               <span>Assinar Documento e Enviar Automaticamente</span>
             </button>
           </form>
-        </div>
-
-        <!-- Lista de Assinaturas já realizadas neste documento -->
-        <div class="bg-white rounded-2xl border border-slate-200 shadow-xs p-5">
-          <h3 class="text-sm font-bold text-slate-900 mb-3">Histórico de Assinaturas deste Documento</h3>
-          <div id="existingSignaturesList" class="space-y-2.5 text-xs text-slate-600">
-            <p class="text-slate-400">Nenhuma assinatura registrada ainda.</p>
-          </div>
         </div>
 
       </div>
@@ -357,7 +348,8 @@
 
   <script>
     const urlParams = new URLSearchParams(window.location.search);
-    const docId = urlParams.get('id');
+    const pathMatch = window.location.pathname.match(/\/assinar\/([a-zA-Z0-9_-]+)/);
+    const docId = urlParams.get('id') || (pathMatch ? pathMatch[1] : null);
 
     let currentDoc = null;
     let currentAuth = {
@@ -395,21 +387,22 @@
     }
 
     function setupGoogleButton(clientId) {
-      window.google.accounts.id.initialize({
-        client_id: clientId,
-        callback: handleGoogleCredentialResponse
-      });
-      const wrap = document.getElementById('officialGoogleBtnWrap');
-      const fallback = document.getElementById('fallbackGoogleBtn');
-      wrap.classList.remove('hidden');
-      fallback.classList.add('hidden');
-      window.google.accounts.id.renderButton(wrap, {
-        theme: 'outline',
-        size: 'large',
-        text: 'signin_with',
-        shape: 'rectangular',
-        locale: 'pt-BR'
-      });
+      if (!clientId || !clientId.includes('.apps.googleusercontent.com')) return;
+      try {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleCredentialResponse
+        });
+        const wrap = document.getElementById('officialGoogleBtnWrap');
+        wrap.classList.remove('hidden');
+        window.google.accounts.id.renderButton(wrap, {
+          theme: 'outline',
+          size: 'large',
+          text: 'signin_with',
+          shape: 'rectangular',
+          locale: 'pt-BR'
+        });
+      } catch (e) {}
     }
 
     async function handleGoogleCredentialResponse(response) {
@@ -453,40 +446,16 @@
         document.getElementById('docTitleHeader').textContent = currentDoc.title;
         document.getElementById('docOwnerInfo').textContent = `Proprietário: ${currentDoc.ownerName} (${currentDoc.ownerEmail}) • Criado em ${currentDoc.createdAtFormatted}`;
         document.getElementById('docHashDisplay').textContent = currentDoc.originalHash.slice(0, 32) + '...';
-        document.getElementById('signaturesCountBadge').textContent = `${currentDoc.signatures.length} assinatura(s) registrada(s)`;
 
+        // Sempre exibe o documento ORIGINAL intacto ao abrir o link para assinar
         const pdfUrl = `/api/documents/${docId}/pdf?t=${Date.now()}`;
         document.getElementById('pdfViewer').src = pdfUrl;
         document.getElementById('downloadPdfBtn').href = `/api/documents/${docId}/pdf?download=1`;
 
-        renderExistingSignatures(currentDoc.signatures);
         updateSignaturePreview();
       } catch (e) {
         showNotFound();
       }
-    }
-
-    function renderExistingSignatures(signatures) {
-      const container = document.getElementById('existingSignaturesList');
-      if (!signatures || signatures.length === 0) {
-        container.innerHTML = `<p class="text-slate-400">Nenhuma assinatura registrada ainda. Seja o primeiro a assinar!</p>`;
-        return;
-      }
-
-      container.innerHTML = signatures.map((s, idx) => `
-        <div class="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-start justify-between gap-2">
-          <div>
-            <p class="font-bold text-slate-800">#${idx + 1} ${s.fullName}</p>
-            <p class="text-[11px] text-slate-500">CPF: ${s.cpf} • ${s.signedAtFormatted}</p>
-            <p class="text-[10px] font-mono text-slate-400 mt-0.5">Cód: ${s.verificationCode}</p>
-          </div>
-          <span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase shrink-0 ${
-            s.authProvider === 'govbr' ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'
-          }">
-            ${s.authProvider === 'govbr' ? 'gov.br' : 'Google'}
-          </span>
-        </div>
-      `).join('');
     }
 
     // ========================================================================
@@ -740,7 +709,7 @@
     }
 
     // ========================================================================
-    // ENVIO DA ASSINATURA
+    // ENVIO DA ASSINATURA (PROCESSO ÚNICO E INDIVIDUAL)
     // ========================================================================
     document.getElementById('signForm').addEventListener('submit', async (e) => {
       e.preventDefault();
@@ -756,10 +725,9 @@
       const fullName = document.getElementById('signerFullName').value.trim();
       const cpf = document.getElementById('signerCpf').value.trim();
       const email = document.getElementById('signerEmail').value.trim();
-      const sendCopy = document.getElementById('sendCopyCheckbox').checked;
 
-      if (sendCopy && !email) {
-        errBox.textContent = 'Para receber uma cópia no seu e-mail, preencha o campo de E-mail.';
+      if (!email || !email.includes('@')) {
+        errBox.textContent = 'O preenchimento do seu e-mail é obrigatório para enviarmos a sua cópia do documento assinado.';
         errBox.classList.remove('hidden');
         return;
       }
@@ -770,7 +738,7 @@
       const btn = document.getElementById('confirmSignBtn');
       const originalHtml = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = '<span>Carimbando PDF e enviando e-mails...</span>';
+      btn.innerHTML = '<span>Gerando documento individual e enviando e-mails...</span>';
 
       try {
         const res = await fetch(`/api/documents/${docId}/sign`, {
@@ -782,7 +750,7 @@
             fullName,
             cpf,
             email,
-            sendCopy,
+            sendCopy: true,
             signatureImage
           })
         });
@@ -790,8 +758,11 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erro ao assinar documento.');
 
-        // Atualiza o PDF ao vivo no visualizador e mostra o comprovante
-        await loadDocumentDetails();
+        // Exibe no visualizador o PDF individual recém-gerado para este signatário
+        if (data.viewSignedUrl) {
+          document.getElementById('pdfViewer').src = `${data.viewSignedUrl}&t=${Date.now()}`;
+          document.getElementById('downloadPdfBtn').href = data.downloadUrl;
+        }
         showSignedConfirmation(data);
       } catch (err) {
         errBox.textContent = err.message;
@@ -815,30 +786,28 @@
       previewLinks.innerHTML = '';
 
       if (data.emailResults && data.emailResults.ownerEmailSent) {
-        ownerStatus.innerHTML = `<span class="text-emerald-600 font-bold">✓</span> <span>Enviado automaticamente para o proprietário: <strong>${currentDoc.ownerEmail}</strong></span>`;
+        ownerStatus.innerHTML = `<span class="text-emerald-600 font-bold">✓</span> <span>Enviado obrigatoriamente para o proprietário: <strong>${currentDoc.ownerEmail}</strong></span>`;
       } else {
-        ownerStatus.innerHTML = `<span class="text-amber-600 font-bold">!</span> <span>PDF assinado gerado (verifique as configurações de e-mail para envio externo).</span>`;
+        ownerStatus.innerHTML = `<span class="text-amber-600 font-bold">!</span> <span>Tentativa de envio ao proprietário (${currentDoc.ownerEmail}) falhou: ${data.emailResults?.error || 'verifique o Google Apps Script na página inicial'}.</span>`;
       }
 
-      if (data.signature.sendCopy && data.signature.email) {
-        if (data.emailResults && data.emailResults.signerEmailSent) {
-          signerStatus.innerHTML = `<span class="text-emerald-600 font-bold">✓</span> <span>Cópia enviada automaticamente para o assinante: <strong>${data.signature.email}</strong></span>`;
-        }
+      if (data.emailResults && data.emailResults.signerEmailSent) {
+        signerStatus.innerHTML = `<span class="text-emerald-600 font-bold">✓</span> <span>Cópia enviada obrigatoriamente para o signatário: <strong>${data.signature.email}</strong></span>`;
       } else {
-        signerStatus.innerHTML = `<span class="text-slate-400">•</span> <span class="text-slate-500">O assinante optou por não receber cópia por e-mail.</span>`;
+        signerStatus.innerHTML = `<span class="text-amber-600 font-bold">!</span> <span>Tentativa de envio ao signatário (${data.signature.email}) falhou: ${data.emailResults?.error || 'verifique o Google Apps Script na página inicial'}.</span>`;
       }
 
       // Se usou a caixa de demonstração automática (Ethereal), exibe os botões para abrir os e-mails enviados
       if (data.emailResults && (data.emailResults.ownerEmailPreviewUrl || data.emailResults.signerEmailPreviewUrl)) {
         let linksHtml = `<p class="text-[11px] text-blue-800 bg-blue-50 p-2.5 rounded-lg border border-blue-200">
-          <strong>Visualizar E-mails Disparados (Modo Demonstração):</strong> Clique abaixo para abrir o e-mail real gerado com o PDF anexado:
+          <strong>Visualizar E-mails Disparados (Caixa de Contingência):</strong> Clique abaixo para abrir os e-mails gerados com o PDF anexado:
         </p><div class="flex flex-wrap gap-2 mt-1.5">`;
 
         if (data.emailResults.ownerEmailPreviewUrl) {
           linksHtml += `<a href="${data.emailResults.ownerEmailPreviewUrl}" target="_blank" class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition">✉ Abrir E-mail do Proprietário</a>`;
         }
         if (data.emailResults.signerEmailPreviewUrl) {
-          linksHtml += `<a href="${data.emailResults.signerEmailPreviewUrl}" target="_blank" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition">✉ Abrir Cópia do Assinante</a>`;
+          linksHtml += `<a href="${data.emailResults.signerEmailPreviewUrl}" target="_blank" class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs transition">✉ Abrir Cópia do Signatário</a>`;
         }
         linksHtml += `</div>`;
         previewLinks.innerHTML = linksHtml;
@@ -853,6 +822,9 @@
       document.getElementById('signForm').reset();
       clearAuth();
       updateSignaturePreview();
+      // Volta o visualizador para o documento ORIGINAL em branco para o próximo signatário
+      document.getElementById('pdfViewer').src = `/api/documents/${docId}/pdf?t=${Date.now()}`;
+      document.getElementById('downloadPdfBtn').href = `/api/documents/${docId}/pdf?download=1`;
     }
   </script>
 </body>

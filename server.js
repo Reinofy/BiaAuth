@@ -42,7 +42,10 @@ function writeDB(data) {
 
 function cleanClientId(raw) {
   if (!raw) return '';
-  return String(raw).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  const s = String(raw).trim();
+  const match = s.match(/([a-zA-Z0-9_-]+\.apps\.googleusercontent\.com)/i);
+  if (match) return match[1];
+  return s.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
 }
 
 function readSettings() {
@@ -158,8 +161,8 @@ function formatCPF(cpf) {
   return `${clean.slice(0, 3)}.${clean.slice(3, 6)}.${clean.slice(6, 9)}-${clean.slice(9, 11)}`;
 }
 
-// Gera o PDF assinado com rodapé em todas as páginas + página de Manifesto de Assinaturas
-async function buildSignedPdf(docRecord) {
+// Gera um PDF assinado EXCLUSIVO e INDIVIDUAL para um único signatário, sem alterar o documento original
+async function buildIndividualSignedPdf(docRecord, sig) {
   const origBytes = fs.readFileSync(docRecord.originalPath);
   const pdfDoc = await PDFDocument.load(origBytes);
 
@@ -168,9 +171,8 @@ async function buildSignedPdf(docRecord) {
   const fontItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanItalic);
 
   const originalPages = pdfDoc.getPages();
-  const latestSig = docRecord.signatures[docRecord.signatures.length - 1];
 
-  // Carimba um rodapé discreto em todas as páginas originais
+  // Carimba um rodapé discreto em todas as páginas originais referente exclusivamente a este assinante
   originalPages.forEach((page, idx) => {
     const { width } = page.getSize();
     page.drawRectangle({
@@ -184,7 +186,7 @@ async function buildSignedPdf(docRecord) {
     });
 
     const footerText = safePdfText(
-      `Assinado digitalmente via BiaAuth | Doc ID: ${docRecord.id.toUpperCase()} | Assinaturas: ${docRecord.signatures.length} | Hash Original: ${docRecord.originalHash.slice(0, 20)}... | Pag. ${idx + 1}/${originalPages.length}`
+      `Assinado digitalmente por: ${sig.fullName} (CPF: ${sig.cpf}) | Cod: ${sig.verificationCode} | Pag. ${idx + 1}/${originalPages.length}`
     );
     page.drawText(footerText, {
       x: 26,
@@ -195,90 +197,86 @@ async function buildSignedPdf(docRecord) {
     });
   });
 
-  // Adiciona página(s) de Manifesto / Certificado de Assinaturas Digitais
-  let certPage = pdfDoc.addPage([595.28, 841.89]); // A4
-  let { width, height } = certPage.getSize();
+  // Adiciona página de Manifesto / Certificado de Assinatura Digital Individual
+  const certPage = pdfDoc.addPage([595.28, 841.89]); // A4
+  const { width, height } = certPage.getSize();
 
-  const drawHeader = (page) => {
-    // Faixa superior azul escuro / índigo
-    page.drawRectangle({
-      x: 0,
-      y: height - 85,
-      width: width,
-      height: 85,
-      color: rgb(0.08, 0.16, 0.36)
-    });
+  // Faixa superior azul escuro / índigo
+  certPage.drawRectangle({
+    x: 0,
+    y: height - 85,
+    width: width,
+    height: 85,
+    color: rgb(0.08, 0.16, 0.36)
+  });
 
-    page.drawText(safePdfText('MANIFESTO E CERTIFICADO DE ASSINATURA DIGITAL'), {
+  certPage.drawText(safePdfText('MANIFESTO E CERTIFICADO DE ASSINATURA DIGITAL'), {
+    x: 36,
+    y: height - 38,
+    size: 14,
+    font: fontBold,
+    color: rgb(1, 1, 1)
+  });
+
+  certPage.drawText(
+    safePdfText(
+      `Plataforma BiaAuth | Validade Juridica conforme MP 2.200-2/2001 e Lei 14.063/2020 | ID: ${docRecord.id.toUpperCase()}`
+    ),
+    {
       x: 36,
-      y: height - 38,
-      size: 14,
-      font: fontBold,
-      color: rgb(1, 1, 1)
-    });
-
-    page.drawText(
-      safePdfText(
-        `Plataforma BiaAuth | Validade Juridica conforme MP 2.200-2/2001 e Lei 14.063/2020 | ID: ${docRecord.id.toUpperCase()}`
-      ),
-      {
-        x: 36,
-        y: height - 58,
-        size: 8.5,
-        font: fontRegular,
-        color: rgb(0.8, 0.88, 1)
-      }
-    );
-
-    // Quadro de resumo do documento
-    page.drawRectangle({
-      x: 36,
-      y: height - 185,
-      width: width - 72,
-      height: 84,
-      color: rgb(0.96, 0.97, 0.99),
-      borderColor: rgb(0.82, 0.86, 0.92),
-      borderWidth: 1
-    });
-
-    page.drawText(safePdfText('DADOS DO DOCUMENTO ORIGINAL'), {
-      x: 48,
-      y: height - 118,
-      size: 9.5,
-      font: fontBold,
-      color: rgb(0.1, 0.2, 0.4)
-    });
-
-    page.drawText(safePdfText(`Documento: ${docRecord.title}`), {
-      x: 48,
-      y: height - 134,
-      size: 9,
+      y: height - 58,
+      size: 8.5,
       font: fontRegular,
-      color: rgb(0.2, 0.2, 0.2)
-    });
+      color: rgb(0.8, 0.88, 1)
+    }
+  );
 
-    page.drawText(safePdfText(`Proprietario: ${docRecord.ownerName} (${docRecord.ownerEmail})`), {
-      x: 48,
-      y: height - 149,
-      size: 9,
-      font: fontRegular,
-      color: rgb(0.2, 0.2, 0.2)
-    });
+  // Quadro de resumo do documento
+  certPage.drawRectangle({
+    x: 36,
+    y: height - 185,
+    width: width - 72,
+    height: 84,
+    color: rgb(0.96, 0.97, 0.99),
+    borderColor: rgb(0.82, 0.86, 0.92),
+    borderWidth: 1
+  });
 
-    page.drawText(safePdfText(`Hash SHA-256 Original: ${docRecord.originalHash}`), {
-      x: 48,
-      y: height - 165,
-      size: 8,
-      font: fontRegular,
-      color: rgb(0.35, 0.35, 0.35)
-    });
-  };
+  certPage.drawText(safePdfText('DADOS DO DOCUMENTO ORIGINAL'), {
+    x: 48,
+    y: height - 118,
+    size: 9.5,
+    font: fontBold,
+    color: rgb(0.1, 0.2, 0.4)
+  });
 
-  drawHeader(certPage);
+  certPage.drawText(safePdfText(`Documento: ${docRecord.title}`), {
+    x: 48,
+    y: height - 134,
+    size: 9,
+    font: fontRegular,
+    color: rgb(0.2, 0.2, 0.2)
+  });
 
-  let cursorY = height - 210;
+  certPage.drawText(safePdfText(`Proprietario: ${docRecord.ownerName} (${docRecord.ownerEmail})`), {
+    x: 48,
+    y: height - 149,
+    size: 9,
+    font: fontRegular,
+    color: rgb(0.2, 0.2, 0.2)
+  });
 
-  certPage.drawText(safePdfText(`REGISTRO DE ASSINATURAS (${docRecord.signatures.length})`), {
+  certPage.drawText(safePdfText(`Hash SHA-256 Original: ${docRecord.originalHash}`), {
+    x: 48,
+    y: height - 165,
+    size: 8,
+    font: fontRegular,
+    color: rgb(0.35, 0.35, 0.35)
+  });
+
+  const cursorY = height - 210;
+
+  certPage.drawText(safePdfText('CERTIFICADO DE ASSINATURA INDIVIDUAL'), {
     x: 36,
     y: cursorY,
     size: 11,
@@ -286,155 +284,141 @@ async function buildSignedPdf(docRecord) {
     color: rgb(0.08, 0.16, 0.36)
   });
 
-  cursorY -= 16;
+  const cardHeight = 145;
+  const boxTop = cursorY - 16;
+  const boxBottom = boxTop - cardHeight;
 
-  for (let i = 0; i < docRecord.signatures.length; i++) {
-    const sig = docRecord.signatures[i];
-    const cardHeight = 135;
+  // Card da assinatura única
+  certPage.drawRectangle({
+    x: 36,
+    y: boxBottom,
+    width: width - 72,
+    height: cardHeight,
+    color: rgb(1, 1, 1),
+    borderColor: sig.authProvider === 'govbr' ? rgb(0.07, 0.32, 0.71) : rgb(0.18, 0.52, 0.35),
+    borderWidth: 1.2
+  });
 
-    if (cursorY - cardHeight < 65) {
-      certPage = pdfDoc.addPage([595.28, 841.89]);
-      drawHeader(certPage);
-      cursorY = height - 210;
+  // Faixa lateral indicadora do provedor
+  certPage.drawRectangle({
+    x: 36,
+    y: boxBottom,
+    width: 6,
+    height: cardHeight,
+    color: sig.authProvider === 'govbr' ? rgb(0.07, 0.32, 0.71) : rgb(0.18, 0.52, 0.35)
+  });
+
+  const providerLabel =
+    sig.authProvider === 'govbr'
+      ? 'AUTENTICADO VIA GOV.BR'
+      : 'AUTENTICADO VIA GOOGLE (GMAIL)';
+
+  certPage.drawText(safePdfText(`SIGNATARIO - ${providerLabel}`), {
+    x: 52,
+    y: boxTop - 20,
+    size: 9.5,
+    font: fontBold,
+    color: sig.authProvider === 'govbr' ? rgb(0.07, 0.32, 0.71) : rgb(0.15, 0.45, 0.28)
+  });
+
+  certPage.drawText(safePdfText(`Nome Completo: ${sig.fullName}`), {
+    x: 52,
+    y: boxTop - 38,
+    size: 10,
+    font: fontBold,
+    color: rgb(0.1, 0.1, 0.1)
+  });
+
+  certPage.drawText(
+    safePdfText(`CPF: ${sig.cpf}   |   E-mail: ${sig.email}`),
+    {
+      x: 52,
+      y: boxTop - 55,
+      size: 8.5,
+      font: fontRegular,
+      color: rgb(0.2, 0.2, 0.2)
     }
+  );
 
-    const boxTop = cursorY;
-    const boxBottom = cursorY - cardHeight;
-
-    // Card da assinatura
-    certPage.drawRectangle({
-      x: 36,
-      y: boxBottom,
-      width: width - 72,
-      height: cardHeight,
-      color: rgb(1, 1, 1),
-      borderColor: sig.authProvider === 'govbr' ? rgb(0.07, 0.32, 0.71) : rgb(0.18, 0.52, 0.35),
-      borderWidth: 1.2
-    });
-
-    // Faixa lateral indicadora do provedor
-    certPage.drawRectangle({
-      x: 36,
-      y: boxBottom,
-      width: 6,
-      height: cardHeight,
-      color: sig.authProvider === 'govbr' ? rgb(0.07, 0.32, 0.71) : rgb(0.18, 0.52, 0.35)
-    });
-
-    const providerLabel =
-      sig.authProvider === 'govbr'
-        ? 'AUTENTICADO VIA GOV.BR'
-        : 'AUTENTICADO VIA GOOGLE (GMAIL)';
-
-    certPage.drawText(safePdfText(`ASSINANTE #${i + 1} - ${providerLabel}`), {
+  certPage.drawText(
+    safePdfText(
+      `Conta Autenticada: ${sig.authAccount || sig.fullName}   |   Data/Hora: ${sig.signedAtFormatted}   |   IP: ${sig.ip}`
+    ),
+    {
       x: 52,
-      y: boxTop - 18,
-      size: 9.5,
-      font: fontBold,
-      color: sig.authProvider === 'govbr' ? rgb(0.07, 0.32, 0.71) : rgb(0.15, 0.45, 0.28)
-    });
-
-    certPage.drawText(safePdfText(`Nome Completo: ${sig.fullName}`), {
-      x: 52,
-      y: boxTop - 36,
-      size: 9.5,
-      font: fontBold,
-      color: rgb(0.1, 0.1, 0.1)
-    });
-
-    certPage.drawText(
-      safePdfText(`CPF: ${sig.cpf}   |   E-mail: ${sig.email || 'Nao informado (facultativo)'}`),
-      {
-        x: 52,
-        y: boxTop - 52,
-        size: 8.5,
-        font: fontRegular,
-        color: rgb(0.2, 0.2, 0.2)
-      }
-    );
-
-    certPage.drawText(
-      safePdfText(
-        `Conta Autenticada: ${sig.authAccount || sig.fullName}   |   Data/Hora: ${sig.signedAtFormatted}   |   IP: ${sig.ip}`
-      ),
-      {
-        x: 52,
-        y: boxTop - 67,
-        size: 8,
-        font: fontRegular,
-        color: rgb(0.3, 0.3, 0.3)
-      }
-    );
-
-    certPage.drawText(safePdfText(`Codigo de Verificacao: ${sig.verificationCode}`), {
-      x: 52,
-      y: boxTop - 82,
+      y: boxTop - 71,
       size: 8,
-      font: fontBold,
-      color: rgb(0.15, 0.25, 0.45)
-    });
-
-    certPage.drawText(safePdfText(`Hash da Assinatura: ${sig.signatureHash}`), {
-      x: 52,
-      y: boxTop - 96,
-      size: 7.2,
       font: fontRegular,
-      color: rgb(0.4, 0.4, 0.4)
-    });
-
-    // Área da rubrica / assinatura visual no canto direito do card
-    certPage.drawRectangle({
-      x: width - 210,
-      y: boxBottom + 14,
-      width: 162,
-      height: 55,
-      color: rgb(0.98, 0.99, 1),
-      borderColor: rgb(0.85, 0.88, 0.93),
-      borderWidth: 0.7
-    });
-
-    let drewImage = false;
-    if (sig.signatureImage && sig.signatureImage.startsWith('data:image/png;base64,')) {
-      try {
-        const base64Data = sig.signatureImage.replace(/^data:image\/png;base64,/, '');
-        const pngImage = await pdfDoc.embedPng(Buffer.from(base64Data, 'base64'));
-        certPage.drawImage(pngImage, {
-          x: width - 204,
-          y: boxBottom + 20,
-          width: 150,
-          height: 43
-        });
-        drewImage = true;
-      } catch (err) {
-        drewImage = false;
-      }
+      color: rgb(0.3, 0.3, 0.3)
     }
+  );
 
-    if (!drewImage) {
-      certPage.drawText(safePdfText(sig.fullName), {
-        x: width - 198,
-        y: boxBottom + 36,
-        size: 13,
-        font: fontItalic,
-        color: rgb(0.08, 0.18, 0.45)
+  certPage.drawText(safePdfText(`Codigo de Verificacao: ${sig.verificationCode}`), {
+    x: 52,
+    y: boxTop - 87,
+    size: 8.5,
+    font: fontBold,
+    color: rgb(0.15, 0.25, 0.45)
+  });
+
+  certPage.drawText(safePdfText(`Hash da Assinatura: ${sig.signatureHash}`), {
+    x: 52,
+    y: boxTop - 103,
+    size: 7.2,
+    font: fontRegular,
+    color: rgb(0.4, 0.4, 0.4)
+  });
+
+  // Área da rubrica / assinatura visual no canto direito do card
+  certPage.drawRectangle({
+    x: width - 210,
+    y: boxBottom + 18,
+    width: 162,
+    height: 55,
+    color: rgb(0.98, 0.99, 1),
+    borderColor: rgb(0.85, 0.88, 0.93),
+    borderWidth: 0.7
+  });
+
+  let drewImage = false;
+  if (sig.signatureImage && sig.signatureImage.startsWith('data:image/png;base64,')) {
+    try {
+      const base64Data = sig.signatureImage.replace(/^data:image\/png;base64,/, '');
+      const pngImage = await pdfDoc.embedPng(Buffer.from(base64Data, 'base64'));
+      certPage.drawImage(pngImage, {
+        x: width - 204,
+        y: boxBottom + 24,
+        width: 150,
+        height: 43
       });
+      drewImage = true;
+    } catch (err) {
+      drewImage = false;
     }
-
-    certPage.drawText(safePdfText('Assinatura Eletronica Validada'), {
-      x: width - 185,
-      y: boxBottom + 6,
-      size: 6.5,
-      font: fontRegular,
-      color: rgb(0.45, 0.45, 0.45)
-    });
-
-    cursorY = boxBottom - 14;
   }
+
+  if (!drewImage) {
+    certPage.drawText(safePdfText(sig.fullName), {
+      x: width - 198,
+      y: boxBottom + 40,
+      size: 13,
+      font: fontItalic,
+      color: rgb(0.08, 0.18, 0.45)
+    });
+  }
+
+  certPage.drawText(safePdfText('Assinatura Eletronica Validada'), {
+    x: width - 185,
+    y: boxBottom + 8,
+    size: 6.5,
+    font: fontRegular,
+    color: rgb(0.45, 0.45, 0.45)
+  });
 
   // Rodapé do certificado
   certPage.drawText(
     safePdfText(
-      'Este documento foi assinado eletronicamente na plataforma BiaAuth. A integridade do arquivo pode ser comprovada pelo Hash SHA-256.'
+      'Este documento foi assinado eletronicamente de forma individual na plataforma BiaAuth. Integridade garantida por SHA-256.'
     ),
     {
       x: 36,
@@ -446,9 +430,11 @@ async function buildSignedPdf(docRecord) {
   );
 
   const signedPdfBytes = await pdfDoc.save();
-  fs.writeFileSync(docRecord.signedPath, signedPdfBytes);
-  docRecord.signedHash = computeFileHash(docRecord.signedPath);
-  return docRecord.signedPath;
+  const individualSignedPath = path.join(UPLOADS_SIGNED_DIR, `${docRecord.id}_${sig.id}.pdf`);
+  fs.writeFileSync(individualSignedPath, signedPdfBytes);
+  sig.signedPath = individualSignedPath;
+  sig.signedHash = computeFileHash(individualSignedPath);
+  return individualSignedPath;
 }
 
 // Configura o transportador de e-mail (Usa SMTP real se configurado, ou cria conta de teste Ethereal automaticamente)
@@ -492,7 +478,7 @@ async function getMailTransporter() {
   };
 }
 
-// Envia os e-mails automáticos para o Proprietário (sempre) e para o Assinante (se solicitado)
+// Envia os e-mails automáticos OBRIGATORIAMENTE para o Proprietário e para o Signatário
 async function sendSignatureEmails(docRecord, signature) {
   const results = {
     ownerEmailSent: false,
@@ -506,7 +492,9 @@ async function sendSignatureEmails(docRecord, signature) {
   const settings = readSettings();
   const providerName =
     signature.authProvider === 'govbr' ? 'Gov.br (Governo Federal)' : 'Google (Gmail)';
-  const safeFileName = `${docRecord.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_Assinado.pdf`;
+  const safeSignerName = signature.fullName.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const safeFileName = `${docRecord.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_Assinado_${safeSignerName}.pdf`;
+  const pdfFilePath = signature.signedPath || docRecord.signedPath;
 
   const ownerHtml = `
     <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
@@ -516,19 +504,19 @@ async function sendSignatureEmails(docRecord, signature) {
       </div>
       <div style="padding: 24px; color: #1e293b; background: #ffffff;">
         <p>Olá, <strong>${docRecord.ownerName}</strong>!</p>
-        <p>O documento <strong>"${docRecord.title}"</strong> que você disponibilizou acabou de ser assinado digitalmente. O arquivo PDF assinado segue <strong>em anexo neste e-mail</strong>.</p>
+        <p>O documento <strong>"${docRecord.title}"</strong> que você disponibilizou acabou de ser assinado digitalmente de forma individual. O arquivo PDF exclusivo desta assinatura segue <strong>em anexo neste e-mail</strong>.</p>
         
         <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; margin: 20px 0;">
-          <h3 style="margin: 0 0 10px; font-size: 15px; color: #1e3a8a;">Dados do Assinante</h3>
+          <h3 style="margin: 0 0 10px; font-size: 15px; color: #1e3a8a;">Dados do Signatário</h3>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Nome Completo:</strong> ${signature.fullName}</p>
           <p style="margin: 4px 0; font-size: 14px;"><strong>CPF:</strong> ${signature.cpf}</p>
-          <p style="margin: 4px 0; font-size: 14px;"><strong>E-mail:</strong> ${signature.email || 'Não informado (facultativo)'}</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>E-mail do Signatário:</strong> ${signature.email}</p>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Autenticação:</strong> ${providerName} (${signature.authAccount})</p>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Data e Hora:</strong> ${signature.signedAtFormatted}</p>
           <p style="margin: 4px 0; font-size: 13px; color: #475569;"><strong>Código de Verificação:</strong> ${signature.verificationCode}</p>
         </div>
 
-        <p style="font-size: 13px; color: #64748b;">O PDF anexado contém o manifesto completo e o hash criptográfico SHA-256 de integridade.</p>
+        <p style="font-size: 13px; color: #64748b;">O PDF anexado contém o certificado individual e o hash criptográfico SHA-256 de integridade.</p>
       </div>
     </div>
   `;
@@ -541,13 +529,13 @@ async function sendSignatureEmails(docRecord, signature) {
       </div>
       <div style="padding: 24px; color: #1e293b; background: #ffffff;">
         <p>Olá, <strong>${signature.fullName}</strong>!</p>
-        <p>Conforme solicitado, enviamos em anexo uma cópia do documento <strong>"${docRecord.title}"</strong> assinado digitalmente por você.</p>
+        <p>Enviamos em anexo a sua via oficial do documento <strong>"${docRecord.title}"</strong> assinado digitalmente por você para o seu arquivo pessoal.</p>
         
         <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; border-radius: 6px; margin: 20px 0;">
           <h3 style="margin: 0 0 10px; font-size: 15px; color: #065f46;">Resumo da sua Assinatura</h3>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Documento:</strong> ${docRecord.title}</p>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Proprietário:</strong> ${docRecord.ownerName} (${docRecord.ownerEmail})</p>
-          <p style="margin: 4px 0; font-size: 14px;"><strong>Assinante:</strong> ${signature.fullName} (CPF: ${signature.cpf})</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Signatário:</strong> ${signature.fullName} (CPF: ${signature.cpf})</p>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Login utilizado:</strong> ${providerName}</p>
           <p style="margin: 4px 0; font-size: 14px;"><strong>Data/Hora:</strong> ${signature.signedAtFormatted}</p>
           <p style="margin: 4px 0; font-size: 13px; color: #065f46;"><strong>Código de Verificação:</strong> ${signature.verificationCode}</p>
@@ -558,85 +546,120 @@ async function sendSignatureEmails(docRecord, signature) {
     </div>
   `;
 
+  // Helper para chamar o Google Apps Script tratando redirecionamentos POST -> GET e verificando erros do script
+  async function sendViaGoogleAppsScript(payload) {
+    const response = await fetch(settings.googleScriptUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(payload),
+      redirect: 'follow'
+    });
+    const text = await response.text();
+    let parsed = null;
+    try {
+      parsed = JSON.parse(text);
+    } catch (_) {}
+
+    if (parsed && parsed.ok === true) {
+      return { ok: true };
+    }
+    if (parsed && parsed.error) {
+      return { ok: false, error: parsed.error };
+    }
+    // Se o Apps Script retornou página HTML de login/permissão ou erro de execução
+    if (text.includes('script.google.com') || text.includes('<!DOCTYPE html>') || !response.ok) {
+      return {
+        ok: false,
+        error: 'O Google Apps Script exigiu permissão ou retornou página HTML. Verifique se foi implantado como "Qualquer pessoa" (Anyone).'
+      };
+    }
+    return { ok: response.ok };
+  }
+
   // MODO 1: Envio Real via Google Apps Script (HTTPS - Funciona 100% no plano gratuito do Render!)
   if (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com')) {
     try {
-      results.isRealSmtp = true;
-      const pdfBase64 = fs.readFileSync(docRecord.signedPath).toString('base64');
+      const pdfBase64 = fs.readFileSync(pdfFilePath).toString('base64');
 
-      // 1) Envia para o proprietário
-      const ownerRes = await fetch(settings.googleScriptUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          to: docRecord.ownerEmail,
+      // 1) Envia OBRIGATORIAMENTE para o proprietário cadastrado
+      if (docRecord.ownerEmail) {
+        const ownerCheck = await sendViaGoogleAppsScript({
+          to: docRecord.ownerEmail.trim(),
           subject: `[BiaAuth] Documento Assinado: "${docRecord.title}" por ${signature.fullName}`,
           htmlBody: ownerHtml,
           fileName: safeFileName,
           pdfBase64
-        })
-      });
-      if (ownerRes.ok) {
-        results.ownerEmailSent = true;
-      }
-
-      // 2) Envia para o assinante (se marcou que deseja cópia)
-      if (signature.sendCopy && signature.email) {
-        const signerRes = await fetch(settings.googleScriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            to: signature.email,
-            subject: `[BiaAuth] Cópia do Documento Assinado: "${docRecord.title}"`,
-            htmlBody: signerHtml,
-            fileName: safeFileName,
-            pdfBase64
-          })
         });
-        if (signerRes.ok) {
-          results.signerEmailSent = true;
+        if (ownerCheck.ok) {
+          results.ownerEmailSent = true;
+          results.isRealSmtp = true;
+        } else {
+          results.error = ownerCheck.error;
         }
       }
 
-      return results;
+      // 2) Envia OBRIGATORIAMENTE para o signatário (para seu arquivo pessoal)
+      if (signature.email) {
+        const signerCheck = await sendViaGoogleAppsScript({
+          to: signature.email.trim(),
+          subject: `[BiaAuth] Sua Cópia do Documento Assinado: "${docRecord.title}"`,
+          htmlBody: signerHtml,
+          fileName: safeFileName,
+          pdfBase64
+        });
+        if (signerCheck.ok) {
+          results.signerEmailSent = true;
+          results.isRealSmtp = true;
+        } else if (!results.error) {
+          results.error = signerCheck.error;
+        }
+      }
+
+      // Se ambos (ou o proprietário) foram enviados com sucesso pelo Google Script, retorna!
+      // Caso tenha falhado, cai para o MODO 2 (SMTP / Ethereal) como contingência para não perder o comprovante
+      if (results.ownerEmailSent && (!signature.email || results.signerEmailSent)) {
+        return results;
+      }
     } catch (err) {
       console.error('Erro ao enviar via Google Apps Script:', err);
       results.error = err.message;
     }
   }
 
-  // MODO 2: SMTP / Ethereal
+  // MODO 2: SMTP / Ethereal (Contingência ou quando SMTP direto está configurado)
   try {
     const { transporter, fromAddress, isRealSmtp } = await getMailTransporter();
-    results.isRealSmtp = isRealSmtp;
+    if (isRealSmtp) results.isRealSmtp = true;
 
-    const ownerInfo = await transporter.sendMail({
-      from: fromAddress,
-      to: docRecord.ownerEmail,
-      subject: `[BiaAuth] Documento Assinado: "${docRecord.title}" por ${signature.fullName}`,
-      html: ownerHtml,
-      attachments: [
-        {
-          filename: safeFileName,
-          path: docRecord.signedPath,
-          contentType: 'application/pdf'
-        }
-      ]
-    });
+    if (!results.ownerEmailSent && docRecord.ownerEmail) {
+      const ownerInfo = await transporter.sendMail({
+        from: fromAddress,
+        to: docRecord.ownerEmail.trim(),
+        subject: `[BiaAuth] Documento Assinado: "${docRecord.title}" por ${signature.fullName}`,
+        html: ownerHtml,
+        attachments: [
+          {
+            filename: safeFileName,
+            path: pdfFilePath,
+            contentType: 'application/pdf'
+          }
+        ]
+      });
 
-    results.ownerEmailSent = true;
-    results.ownerEmailPreviewUrl = nodemailer.getTestMessageUrl(ownerInfo) || null;
+      results.ownerEmailSent = true;
+      results.ownerEmailPreviewUrl = nodemailer.getTestMessageUrl(ownerInfo) || null;
+    }
 
-    if (signature.sendCopy && signature.email) {
+    if (!results.signerEmailSent && signature.email) {
       const signerInfo = await transporter.sendMail({
         from: fromAddress,
-        to: signature.email,
-        subject: `[BiaAuth] Cópia do Documento Assinado: "${docRecord.title}"`,
+        to: signature.email.trim(),
+        subject: `[BiaAuth] Sua Cópia do Documento Assinado: "${docRecord.title}"`,
         html: signerHtml,
         attachments: [
           {
             filename: safeFileName,
-            path: docRecord.signedPath,
+            path: pdfFilePath,
             contentType: 'application/pdf'
           }
         ]
@@ -770,7 +793,7 @@ app.post('/api/documents/sample', async (req, res) => {
     res.json({
       success: true,
       document: newDoc,
-      shareUrl: `${req.protocol}://${req.get('host')}/assinar.html?id=${docId}`
+      shareUrl: `${req.protocol}://${req.get('host')}/assinar/${docId}`
     });
   } catch (err) {
     console.error(err);
@@ -823,12 +846,17 @@ app.post('/api/documents', upload.single('pdfFile'), (req, res) => {
     res.json({
       success: true,
       document: newDoc,
-      shareUrl: `${req.protocol}://${req.get('host')}/assinar.html?id=${docId}`
+      shareUrl: `${req.protocol}://${req.get('host')}/assinar/${docId}`
     });
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Erro ao disponibilizar documento: ' + err.message });
   }
+});
+
+// Rota amigável de Link Único Permanente do Documento Original: /assinar/:id
+app.get('/assinar/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'assinar.html'));
 });
 
 // 4. Obter detalhes de um documento pelo ID
@@ -854,7 +882,7 @@ app.get('/api/documents/:id', (req, res) => {
   });
 });
 
-// 5. Visualizar / Baixar o PDF (se já tiver assinaturas, mostra o PDF com o manifesto atualizado)
+// 5. Visualizar / Baixar o PDF (Por padrão sempre retorna o documento ORIGINAL em branco; se informar ?sigId=..., retorna o PDF exclusivo daquela assinatura)
 app.get('/api/documents/:id/pdf', (req, res) => {
   const db = readDB();
   const doc = db.documents.find((d) => d.id === req.params.id);
@@ -862,18 +890,23 @@ app.get('/api/documents/:id/pdf', (req, res) => {
     return res.status(404).send('Documento não encontrado.');
   }
 
-  const targetPath =
-    req.query.type === 'original' || !fs.existsSync(doc.signedPath)
-      ? doc.originalPath
-      : doc.signedPath;
+  let targetPath = doc.originalPath;
+  let suffix = '';
+
+  if (req.query.sigId) {
+    const sig = doc.signatures.find((s) => s.id === req.query.sigId);
+    if (sig && sig.signedPath && fs.existsSync(sig.signedPath)) {
+      targetPath = sig.signedPath;
+      const safeSigner = sig.fullName.replace(/[^a-zA-Z0-9_-]/g, '_');
+      suffix = `_Assinado_${safeSigner}`;
+    }
+  }
 
   if (!fs.existsSync(targetPath)) {
     return res.status(404).send('Arquivo PDF não encontrado no servidor.');
   }
 
-  const downloadName = `${doc.title.replace(/[^a-zA-Z0-9_-]/g, '_')}${
-    doc.signatures.length > 0 ? '_Assinado' : ''
-  }.pdf`;
+  const downloadName = `${doc.title.replace(/[^a-zA-Z0-9_-]/g, '_')}${suffix}.pdf`;
 
   if (req.query.download === '1') {
     res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
@@ -884,7 +917,7 @@ app.get('/api/documents/:id/pdf', (req, res) => {
   fs.createReadStream(targetPath).pipe(res);
 });
 
-// 6. Assinar o Documento
+// 6. Assinar o Documento (Processo Único e Individual)
 app.post('/api/documents/:id/sign', async (req, res) => {
   try {
     const db = readDB();
@@ -899,7 +932,6 @@ app.post('/api/documents/:id/sign', async (req, res) => {
       fullName,
       cpf,
       email,
-      sendCopy,
       signatureImage
     } = req.body;
 
@@ -917,9 +949,15 @@ app.post('/api/documents/:id/sign', async (req, res) => {
       return res.status(400).json({ error: 'Por favor, informe um CPF válido.' });
     }
 
-    if (sendCopy && (!email || !email.includes('@'))) {
+    // Se o usuário autenticou com Google e por algum motivo o campo email veio vazio, aproveita o e-mail da conta Google
+    let finalEmail = (email || '').trim();
+    if (!finalEmail && authAccount && authAccount.includes('@')) {
+      finalEmail = authAccount.split(' ')[0].trim();
+    }
+
+    if (!finalEmail || !finalEmail.includes('@')) {
       return res.status(400).json({
-        error: 'Para receber uma cópia no seu e-mail, preencha o campo de e-mail com um endereço válido.'
+        error: 'O e-mail do signatário é obrigatório para o envio automático da sua cópia do documento assinado.'
       });
     }
 
@@ -941,11 +979,11 @@ app.post('/api/documents/:id/sign', async (req, res) => {
     const signatureRecord = {
       id: crypto.randomBytes(6).toString('hex'),
       authProvider,
-      authAccount: authAccount || (authProvider === 'govbr' ? `Gov.br (${formattedCpf})` : email || 'Conta Google'),
+      authAccount: authAccount || (authProvider === 'govbr' ? `Gov.br (${formattedCpf})` : finalEmail),
       fullName: fullName.trim(),
       cpf: formattedCpf,
-      email: email ? email.trim() : '',
-      sendCopy: Boolean(sendCopy),
+      email: finalEmail,
+      sendCopy: true,
       signedAt: now.toISOString(),
       signedAtFormatted: formattedDate,
       ip: clientIp,
@@ -954,22 +992,23 @@ app.post('/api/documents/:id/sign', async (req, res) => {
       signatureImage: signatureImage || null
     };
 
-    doc.signatures.push(signatureRecord);
+    // Gera um PDF assinado EXCLUSIVO para este signatário (o documento original permanece intacto!)
+    await buildIndividualSignedPdf(doc, signatureRecord);
 
-    // Gera o novo PDF assinado com carimbo e página de manifesto
-    await buildSignedPdf(doc);
+    doc.signatures.push(signatureRecord);
 
     // Salva no banco
     writeDB(db);
 
-    // Dispara automaticamente os e-mails para o proprietário e (se marcado) para o assinante
+    // Dispara OBRIGATORIAMENTE os e-mails com o PDF individual para o proprietário cadastrado e para o signatário
     const emailResults = await sendSignatureEmails(doc, signatureRecord);
 
     res.json({
       success: true,
       signature: signatureRecord,
       emailResults,
-      downloadUrl: `/api/documents/${doc.id}/pdf?download=1`
+      downloadUrl: `/api/documents/${doc.id}/pdf?sigId=${signatureRecord.id}&download=1`,
+      viewSignedUrl: `/api/documents/${doc.id}/pdf?sigId=${signatureRecord.id}`
     });
   } catch (err) {
     console.error('Erro ao assinar documento:', err);
@@ -1036,7 +1075,7 @@ app.post('/api/settings/email', (req, res) => {
 
   const updated = {
     googleScriptUrl: googleScriptUrl !== undefined ? googleScriptUrl.trim() : (current.googleScriptUrl || ''),
-    googleClientId: googleClientId !== undefined ? googleClientId.trim() : (current.googleClientId || ''),
+    googleClientId: googleClientId !== undefined ? cleanClientId(googleClientId) : cleanClientId(current.googleClientId || ''),
     smtpHost: (smtpHost || current.smtpHost || 'smtp.gmail.com').trim(),
     smtpPort: Number(smtpPort || current.smtpPort || 587),
     smtpUser: smtpUser !== undefined ? smtpUser.trim() : (current.smtpUser || ''),
@@ -1050,6 +1089,64 @@ app.post('/api/settings/email', (req, res) => {
     isConfigured: Boolean(updated.googleScriptUrl || (updated.smtpUser && updated.smtpPass)),
     hasGoogleAuth: Boolean(updated.googleClientId)
   });
+});
+
+// 10. Testar Envio de E-mail (Google Apps Script ou SMTP)
+app.post('/api/settings/test-email', async (req, res) => {
+  try {
+    const { testEmail } = req.body;
+    if (!testEmail || !testEmail.includes('@')) {
+      return res.status(400).json({ error: 'Informe um e-mail válido para realizar o teste.' });
+    }
+
+    const settings = readSettings();
+    const htmlBody = `
+      <div style="font-family: Arial, sans-serif; padding: 20px; border: 1px solid #e2e8f0; border-radius: 10px;">
+        <h2 style="color: #1e3a8a;">Teste de Envio Automático — BiaAuth</h2>
+        <p>Este é um e-mail de teste disparado pela plataforma <strong>BiaAuth</strong>.</p>
+        <p>Se você recebeu esta mensagem na sua caixa de entrada, o envio automático para o <strong>Proprietário</strong> e para o <strong>Signatário</strong> está funcionando perfeitamente!</p>
+      </div>
+    `;
+
+    if (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com')) {
+      const samplePdf = await PDFDocument.create();
+      const p = samplePdf.addPage([400, 200]);
+      p.drawText('PDF de Teste BiaAuth - Envio OK', { x: 40, y: 100, size: 14 });
+      const pdfBytes = await samplePdf.save();
+
+      const gsRes = await fetch(settings.googleScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          to: testEmail.trim(),
+          subject: '[BiaAuth] Teste de Envio de E-mail Automático',
+          htmlBody,
+          fileName: 'Teste_BiaAuth.pdf',
+          pdfBase64: Buffer.from(pdfBytes).toString('base64')
+        }),
+        redirect: 'follow'
+      });
+
+      const text = await gsRes.text();
+      let parsed = null;
+      try {
+        parsed = JSON.parse(text);
+      } catch (_) {}
+
+      if (parsed && parsed.ok) {
+        return res.json({ success: true, message: `E-mail real enviado com sucesso para ${testEmail} via Google Apps Script!` });
+      }
+      return res.status(400).json({
+        error: (parsed && parsed.error) || 'O Google Apps Script não confirmou o envio. Verifique se na implantação do script a opção "Quem pode acessar" está definida como "Qualquer pessoa".'
+      });
+    }
+
+    return res.status(400).json({
+      error: 'Configure primeiro a URL do Google Apps Script e clique em Salvar antes de testar.'
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Falha ao testar envio: ' + err.message });
+  }
 });
 
 app.listen(PORT, () => {
