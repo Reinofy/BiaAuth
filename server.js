@@ -40,11 +40,16 @@ function writeDB(data) {
   fs.writeFileSync(DB_FILE, JSON.stringify(data, null, 2));
 }
 
+function cleanClientId(raw) {
+  if (!raw) return '';
+  return String(raw).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+}
+
 function readSettings() {
   if (!fs.existsSync(SETTINGS_FILE)) {
     const initial = {
-      googleScriptUrl: process.env.GOOGLE_SCRIPT_URL || '',
-      googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+      googleScriptUrl: (process.env.GOOGLE_SCRIPT_URL || '').trim(),
+      googleClientId: cleanClientId(process.env.GOOGLE_CLIENT_ID || ''),
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: Number(process.env.SMTP_PORT || 587),
       smtpUser: process.env.SMTP_USER || '',
@@ -57,8 +62,8 @@ function readSettings() {
   try {
     const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
     return {
-      googleScriptUrl: parsed.googleScriptUrl || process.env.GOOGLE_SCRIPT_URL || '',
-      googleClientId: parsed.googleClientId || process.env.GOOGLE_CLIENT_ID || '',
+      googleScriptUrl: (parsed.googleScriptUrl || process.env.GOOGLE_SCRIPT_URL || '').trim(),
+      googleClientId: cleanClientId(parsed.googleClientId || process.env.GOOGLE_CLIENT_ID || ''),
       smtpHost: parsed.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: Number(parsed.smtpPort || process.env.SMTP_PORT || 587),
       smtpUser: parsed.smtpUser || process.env.SMTP_USER || '',
@@ -67,8 +72,8 @@ function readSettings() {
     };
   } catch (e) {
     return {
-      googleScriptUrl: process.env.GOOGLE_SCRIPT_URL || '',
-      googleClientId: process.env.GOOGLE_CLIENT_ID || ''
+      googleScriptUrl: (process.env.GOOGLE_SCRIPT_URL || '').trim(),
+      googleClientId: cleanClientId(process.env.GOOGLE_CLIENT_ID || '')
     };
   }
 }
