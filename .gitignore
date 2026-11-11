@@ -1,0 +1,16 @@
+# Dependências do Node
+node_modules/
+
+# Arquivos de configuração sensíveis (senhas de e-mail / variáveis de ambiente)
+.env
+data/settings.json
+
+# Documentos enviados e banco local de testes
+uploads/originals/*.pdf
+uploads/signed/*.pdf
+data/db.json
+
+# Logs e arquivos do sistema
+npm-debug.log*
+.DS_Store
+Thumbs.db

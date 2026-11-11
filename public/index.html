@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BiaAuth — Plataforma Gratuita de Assinatura Digital</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .drop-active { border-color: #2563eb !important; background-color: #eff6ff !important; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- Cabeçalho -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-700 to-indigo-600 flex items-center justify-center text-white font-extrabold text-xl shadow-md">
+          B
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-xl font-bold text-slate-900 tracking-tight">BiaAuth</h1>
+            <span class="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800">100% Gratuito</span>
+          </div>
+          <p class="text-xs text-slate-500">Plataforma de Assinatura Digital com Login Google e Gov.br</p>
+        </div>
+      </div>
+
+      <div class="flex items-center gap-3">
+        <button onclick="openEmailModal()" class="inline-flex items-center gap-2 text-xs sm:text-sm font-medium px-3.5 py-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 transition shadow-sm">
+          <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+          <span id="smtpStatusBadge">Configurar E-mail Automático</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Conteúdo Principal -->
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex-1 w-full">
+
+    <!-- Faixa Explicativa do Fluxo -->
+    <div class="bg-gradient-to-r from-blue-900 via-blue-800 to-indigo-900 rounded-2xl p-6 sm:p-8 text-white shadow-lg mb-8">
+      <h2 class="text-xl sm:text-2xl font-bold mb-2">Como funciona a assinatura digital no BiaAuth?</h2>
+      <p class="text-blue-100 text-sm sm:text-base mb-6">Disponibilize seu PDF em segundos, envie o link e receba o documento assinado automaticamente no seu e-mail.</p>
+      
+      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
+          <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs mb-2">1</div>
+          <p class="font-semibold text-white">Envie o PDF</p>
+          <p class="text-blue-100 text-xs mt-1">O proprietário faz upload do PDF e informa seu e-mail para recebimento.</p>
+        </div>
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
+          <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs mb-2">2</div>
+          <p class="font-semibold text-white">Compartilhe o Link</p>
+          <p class="text-blue-100 text-xs mt-1">Copie o link exclusivo gerado ou envie direto por WhatsApp / E-mail.</p>
+        </div>
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
+          <div class="w-7 h-7 rounded-full bg-blue-500 text-white font-bold flex items-center justify-center text-xs mb-2">3</div>
+          <p class="font-semibold text-white">Login Gmail ou Gov.br</p>
+          <p class="text-blue-100 text-xs mt-1">O assinante abre o PDF, faz login com Google ou Gov.br e informa Nome e CPF.</p>
+        </div>
+        <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/15">
+          <div class="w-7 h-7 rounded-full bg-emerald-500 text-white font-bold flex items-center justify-center text-xs mb-2">4</div>
+          <p class="font-semibold text-white">Envio Automático</p>
+          <p class="text-blue-100 text-xs mt-1">O PDF assinado é enviado automaticamente ao proprietário e, se desejado, ao assinante.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+
+      <!-- Coluna Esquerda: Formulário para Disponibilizar Documento -->
+      <div class="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-8">
+        <div class="flex items-center justify-between mb-6">
+          <div>
+            <span class="text-xs font-bold uppercase tracking-wider text-blue-600">Passo 1 • Área do Proprietário</span>
+            <h3 class="text-xl font-bold text-slate-900 mt-0.5">Disponibilizar Documento (PDF)</h3>
+          </div>
+        </div>
+
+        <form id="uploadForm" class="space-y-5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">Seu Nome (Proprietário) <span class="text-red-500">*</span></label>
+              <input type="text" id="ownerName" required placeholder="Ex: Maria Oliveira"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm transition" />
+            </div>
+            <div>
+              <label class="block text-sm font-semibold text-slate-700 mb-1.5">Seu E-mail (Receberá o PDF) <span class="text-red-500">*</span></label>
+              <input type="email" id="ownerEmail" required placeholder="seuemail@gmail.com"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm transition" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Título do Documento <span class="text-slate-400 font-normal">(opcional)</span></label>
+            <input type="text" id="docTitle" placeholder="Ex: Contrato de Locação / Termo de Adesão"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none text-sm transition" />
+          </div>
+
+          <!-- Upload de Arquivo PDF -->
+          <div>
+            <label class="block text-sm font-semibold text-slate-700 mb-1.5">Arquivo PDF para Assinar <span class="text-red-500">*</span></label>
+            <div id="dropZone"
+              onclick="document.getElementById('pdfFile').click()"
+              class="border-2 border-dashed border-slate-300 hover:border-blue-500 rounded-2xl p-6 text-center cursor-pointer transition bg-slate-50/70 hover:bg-blue-50/40">
+              <input type="file" id="pdfFile" name="pdfFile" accept="application/pdf,.pdf" class="hidden" onchange="handleFileSelect(this)" />
+              <div class="w-12 h-12 rounded-full bg-blue-100 text-blue-600 mx-auto flex items-center justify-center mb-3">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+              </div>
+              <p id="fileNameDisplay" class="text-sm font-semibold text-slate-700">Clique para escolher um arquivo PDF ou arraste-o aqui</p>
+              <p class="text-xs text-slate-500 mt-1">Apenas arquivos .PDF (máx. 25MB)</p>
+            </div>
+          </div>
+
+          <div id="uploadError" class="hidden p-3.5 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm"></div>
+
+          <div class="flex flex-col sm:flex-row gap-3 pt-2">
+            <button type="submit" id="submitBtn"
+              class="flex-1 py-3 px-5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-sm shadow-md hover:shadow-lg transition flex items-center justify-center gap-2">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+              </svg>
+              <span>Disponibilizar PDF e Gerar Link</span>
+            </button>
+
+            <button type="button" onclick="createSampleDocument()" id="sampleBtn"
+              class="py-3 px-4 rounded-xl border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs sm:text-sm transition flex items-center justify-center gap-1.5"
+              title="Cria um contrato PDF de exemplo para você testar agora mesmo sem precisar procurar um PDF no computador">
+              <span>⚡ Testar com PDF de Exemplo</span>
+            </button>
+          </div>
+        </form>
+
+        <!-- Resultado: Link Gerado para Enviar aos Assinantes -->
+        <div id="shareResultBox" class="hidden mt-8 p-6 rounded-2xl bg-emerald-50 border-2 border-emerald-300 shadow-sm">
+          <div class="flex items-start gap-3">
+            <div class="w-9 h-9 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 mt-0.5">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"/>
+              </svg>
+            </div>
+            <div class="flex-1 min-w-0">
+              <span class="text-xs font-bold uppercase tracking-wider text-emerald-700">Passo 2 • Link Pronto para Compartilhar</span>
+              <h4 class="text-lg font-bold text-slate-900 mt-0.5" id="shareDocTitle">Documento disponibilizado!</h4>
+              <p class="text-xs text-slate-600 mt-1">Envie o link abaixo para as pessoas que devem assinar este documento:</p>
+
+              <div class="mt-3 flex flex-col sm:flex-row gap-2">
+                <input type="text" id="shareLinkInput" readonly
+                  class="flex-1 px-3.5 py-2.5 rounded-xl bg-white border border-emerald-300 text-slate-800 text-xs sm:text-sm font-mono select-all outline-none" />
+                <button type="button" onclick="copyShareLink()"
+                  class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs sm:text-sm transition shrink-0">
+                  <span id="copyBtnText">Copiar Link</span>
+                </button>
+              </div>
+
+              <div class="mt-4 flex flex-wrap gap-2.5">
+                <a id="openSignLinkBtn" href="#" target="_blank"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition">
+                  <span>Abrir Página de Assinatura</span>
+                  <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>
+                  </svg>
+                </a>
+
+                <a id="whatsappShareBtn" href="#" target="_blank"
+                  class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-green-600 hover:bg-green-700 text-white font-semibold text-xs sm:text-sm shadow-sm transition">
+                  <span>Enviar no WhatsApp</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Coluna Direita: Lista de Documentos Disponibilizados e Assinaturas -->
+      <div class="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <h3 class="text-lg font-bold text-slate-900">Documentos Disponibilizados</h3>
+            <p class="text-xs text-slate-500">Acompanhe os links e baixe os PDFs assinados</p>
+          </div>
+          <button onclick="loadDocuments()" class="text-xs text-blue-600 hover:text-blue-800 font-semibold">
+            ↻ Atualizar
+          </button>
+        </div>
+
+        <div id="documentsList" class="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+          <p class="text-sm text-slate-400 py-8 text-center">Carregando documentos...</p>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Modal de Configuração de E-mail (SMTP / Gmail) -->
+  <div id="emailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold text-slate-900">Configurar Disparo de E-mails</h3>
+        <button onclick="closeEmailModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+      </div>
+
+      <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 mb-4 leading-relaxed">
+        <strong>Modo Automático Já Ativo:</strong> Mesmo sem preencher nada abaixo, o sistema gera uma caixa de e-mail de demonstração real (Ethereal) e exibe na tela o botão para visualizar o e-mail enviado com o PDF anexado.<br><br>
+        <strong>Para enviar para caixas de entrada reais (Gmail):</strong> Informe seu endereço Gmail e uma <a href="https://myaccount.google.com/apppasswords" target="_blank" class="underline font-semibold">Senha de App do Google</a>.
+      </div>
+
+      <form id="smtpForm" onsubmit="saveEmailSettings(event)" class="space-y-3.5 text-sm">
+        <div class="grid grid-cols-3 gap-3">
+          <div class="col-span-2">
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Servidor SMTP</label>
+            <input type="text" id="smtpHost" value="smtp.gmail.com"
+              class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs font-semibold text-slate-700 mb-1">Porta</label>
+            <input type="number" id="smtpPort" value="587"
+              class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+          </div>
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Seu E-mail Remetente (ex: seuemail@gmail.com)</label>
+          <input type="email" id="smtpUser" placeholder="Deixe em branco para usar o modo de demonstração"
+            class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+        </div>
+
+        <div>
+          <label class="block text-xs font-semibold text-slate-700 mb-1">Senha de App do Gmail (16 letras)</label>
+          <input type="password" id="smtpPass" placeholder="xxxx xxxx xxxx xxxx"
+            class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+        </div>
+
+        <div id="smtpSaveMsg" class="hidden text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg"></div>
+
+        <div class="flex justify-end gap-2 pt-3">
+          <button type="button" onclick="closeEmailModal()" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold">
+            Fechar
+          </button>
+          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold">
+            Salvar Configuração
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <footer class="py-5 text-center text-xs text-slate-400 border-t border-slate-200 bg-white mt-12">
+    BiaAuth — Plataforma Gratuita de Assinatura Eletrônica de Documentos PDF
+  </footer>
+
+  <script>
+    // Salvar dados do proprietário localmente para facilitar envios futuros
+    window.addEventListener('DOMContentLoaded', () => {
+      const savedName = localStorage.getItem('bia_owner_name');
+      const savedEmail = localStorage.getItem('bia_owner_email');
+      if (savedName) document.getElementById('ownerName').value = savedName;
+      if (savedEmail) document.getElementById('ownerEmail').value = savedEmail;
+
+      setupDragAndDrop();
+      loadDocuments();
+      checkSmtpSettings();
+    });
+
+    function handleFileSelect(input) {
+      const display = document.getElementById('fileNameDisplay');
+      if (input.files && input.files[0]) {
+        const file = input.files[0];
+        display.innerHTML = `<span class="text-blue-700 font-bold">📄 ${file.name}</span> (${(file.size / 1024).toFixed(1)} KB)`;
+      } else {
+        display.textContent = 'Clique para escolher um arquivo PDF ou arraste-o aqui';
+      }
+    }
+
+    function setupDragAndDrop() {
+      const dz = document.getElementById('dropZone');
+      const fileInput = document.getElementById('pdfFile');
+
+      ['dragenter', 'dragover'].forEach(evt => {
+        dz.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dz.classList.add('drop-active');
+        });
+      });
+
+      ['dragleave', 'drop'].forEach(evt => {
+        dz.addEventListener(evt, (e) => {
+          e.preventDefault();
+          dz.classList.remove('drop-active');
+        });
+      });
+
+      dz.addEventListener('drop', (e) => {
+        if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+          fileInput.files = e.dataTransfer.files;
+          handleFileSelect(fileInput);
+        }
+      });
+    }
+
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const errBox = document.getElementById('uploadError');
+      errBox.classList.add('hidden');
+
+      const ownerName = document.getElementById('ownerName').value.trim();
+      const ownerEmail = document.getElementById('ownerEmail').value.trim();
+      const title = document.getElementById('docTitle').value.trim();
+      const fileInput = document.getElementById('pdfFile');
+
+      if (!fileInput.files || !fileInput.files[0]) {
+        errBox.textContent = 'Selecione um arquivo PDF para disponibilizar ou clique em "Testar com PDF de Exemplo".';
+        errBox.classList.remove('hidden');
+        return;
+      }
+
+      localStorage.setItem('bia_owner_name', ownerName);
+      localStorage.setItem('bia_owner_email', ownerEmail);
+
+      const formData = new FormData();
+      formData.append('ownerName', ownerName);
+      formData.append('ownerEmail', ownerEmail);
+      formData.append('title', title);
+      formData.append('pdfFile', fileInput.files[0]);
+
+      const btn = document.getElementById('submitBtn');
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span>Enviando PDF e gerando link...</span>';
+
+      try {
+        const res = await fetch('/api/documents', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao enviar documento.');
+
+        showShareResult(data.document, data.shareUrl);
+        fileInput.value = '';
+        document.getElementById('docTitle').value = '';
+        handleFileSelect(fileInput);
+        loadDocuments();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+      }
+    });
+
+    async function createSampleDocument() {
+      const errBox = document.getElementById('uploadError');
+      errBox.classList.add('hidden');
+
+      let ownerName = document.getElementById('ownerName').value.trim();
+      let ownerEmail = document.getElementById('ownerEmail').value.trim();
+      const title = document.getElementById('docTitle').value.trim() || 'Contrato de Prestação de Serviços';
+
+      if (!ownerName) {
+        ownerName = 'Proprietário Demonstração';
+        document.getElementById('ownerName').value = ownerName;
+      }
+      if (!ownerEmail) {
+        ownerEmail = 'proprietario@exemplo.com.br';
+        document.getElementById('ownerEmail').value = ownerEmail;
+      }
+
+      localStorage.setItem('bia_owner_name', ownerName);
+      localStorage.setItem('bia_owner_email', ownerEmail);
+
+      const sampleBtn = document.getElementById('sampleBtn');
+      sampleBtn.disabled = true;
+      sampleBtn.textContent = 'Gerando PDF...';
+
+      try {
+        const res = await fetch('/api/documents/sample', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ownerName, ownerEmail, title })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Erro ao criar exemplo.');
+
+        showShareResult(data.document, data.shareUrl);
+        loadDocuments();
+      } catch (err) {
+        errBox.textContent = err.message;
+        errBox.classList.remove('hidden');
+      } finally {
+        sampleBtn.disabled = false;
+        sampleBtn.textContent = '⚡ Testar com PDF de Exemplo';
+      }
+    }
+
+    function showShareResult(doc, shareUrl) {
+      const box = document.getElementById('shareResultBox');
+      document.getElementById('shareDocTitle').textContent = `"${doc.title}" pronto para assinatura!`;
+      document.getElementById('shareLinkInput').value = shareUrl;
+      document.getElementById('openSignLinkBtn').href = shareUrl;
+
+      const waText = encodeURIComponent(`Olá! Por favor, acesse o link abaixo para ler e assinar digitalmente o documento "${doc.title}":\n\n${shareUrl}`);
+      document.getElementById('whatsappShareBtn').href = `https://wa.me/?text=${waText}`;
+
+      box.classList.remove('hidden');
+      box.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+
+    function copyShareLink(customUrl) {
+      const input = document.getElementById('shareLinkInput');
+      const urlToCopy = customUrl || input.value;
+      navigator.clipboard.writeText(urlToCopy);
+      if (!customUrl) {
+        const btnText = document.getElementById('copyBtnText');
+        btnText.textContent = '✓ Link Copiado!';
+        setTimeout(() => { btnText.textContent = 'Copiar Link'; }, 2500);
+      } else {
+        alert('Link de assinatura copiado para a área de transferência:\n' + urlToCopy);
+      }
+    }
+
+    async function loadDocuments() {
+      const container = document.getElementById('documentsList');
+      try {
+        const res = await fetch('/api/documents');
+        const data = await res.json();
+
+        if (!data.documents || data.documents.length === 0) {
+          container.innerHTML = `
+            <div class="text-center py-10 px-4 border border-dashed border-slate-200 rounded-xl">
+              <p class="text-sm font-medium text-slate-500">Nenhum documento disponibilizado ainda.</p>
+              <p class="text-xs text-slate-400 mt-1">Faça upload de um PDF ao lado ou clique em "Testar com PDF de Exemplo".</p>
+            </div>
+          `;
+          return;
+        }
+
+        container.innerHTML = data.documents.map(doc => {
+          const signUrl = `${window.location.origin}/assinar.html?id=${doc.id}`;
+          const isSigned = doc.signaturesCount > 0;
+          const badgeClass = isSigned
+            ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+            : 'bg-amber-100 text-amber-800 border-amber-200';
+          const badgeText = isSigned
+            ? `✓ ${doc.signaturesCount} assinatura(s)`
+            : 'Aguardando assinatura';
+
+          const signersHtml = isSigned
+            ? `<div class="mt-2.5 pt-2.5 border-t border-slate-100 space-y-1">
+                ${doc.signatures.map(s => `
+                  <div class="flex items-center justify-between text-xs text-slate-600">
+                    <span class="truncate">🖋️ <strong>${s.fullName}</strong> (${s.cpf})</span>
+                    <span class="px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${s.authProvider === 'govbr' ? 'bg-blue-100 text-blue-800' : 'bg-red-100 text-red-700'}">
+                      ${s.authProvider === 'govbr' ? 'Gov.br' : 'Gmail'}
+                    </span>
+                  </div>
+                `).join('')}
+              </div>`
+            : '';
+
+          return `
+            <div class="p-4 rounded-xl border border-slate-200 hover:border-blue-300 transition bg-slate-50/50">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <h4 class="font-bold text-sm text-slate-900 truncate" title="${doc.title}">${doc.title}</h4>
+                  <p class="text-xs text-slate-500 mt-0.5">Proprietário: ${doc.ownerName} (${doc.ownerEmail})</p>
+                  <p class="text-[11px] text-slate-400">${doc.createdAtFormatted}</p>
+                </div>
+                <span class="text-xs font-semibold px-2.5 py-1 rounded-full border shrink-0 ${badgeClass}">
+                  ${badgeText}
+                </span>
+              </div>
+
+              ${signersHtml}
+
+              <div class="mt-3 pt-2.5 border-t border-slate-200/70 flex flex-wrap items-center gap-2">
+                <a href="${signUrl}" target="_blank"
+                  class="text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition">
+                  Abrir Link de Assinatura
+                </a>
+                <button onclick="copyShareLink('${signUrl}')"
+                  class="text-xs font-medium px-3 py-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-100 text-slate-700 transition">
+                  Copiar Link
+                </button>
+                <a href="/api/documents/${doc.id}/pdf?download=1"
+                  class="text-xs font-medium px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 transition ml-auto">
+                  ⬇ Baixar PDF
+                </a>
+              </div>
+            </div>
+          `;
+        }).join('');
+      } catch (e) {
+        container.innerHTML = `<p class="text-xs text-red-500">Erro ao carregar lista de documentos.</p>`;
+      }
+    }
+
+    // Modal de configuração de e-mail
+    async function checkSmtpSettings() {
+      try {
+        const res = await fetch('/api/settings/email');
+        const data = await res.json();
+        document.getElementById('smtpHost').value = data.smtpHost || 'smtp.gmail.com';
+        document.getElementById('smtpPort').value = data.smtpPort || 587;
+        document.getElementById('smtpUser').value = data.smtpUser || '';
+        const badge = document.getElementById('smtpStatusBadge');
+        if (data.smtpUser && data.hasPassword) {
+          badge.textContent = `E-mail Ativo (${data.smtpUser})`;
+        } else {
+          badge.textContent = 'Configurar E-mail (Modo Teste Ativo)';
+        }
+      } catch (e) {}
+    }
+
+    function openEmailModal() {
+      document.getElementById('emailModal').classList.remove('hidden');
+      document.getElementById('emailModal').classList.add('flex');
+    }
+
+    function closeEmailModal() {
+      document.getElementById('emailModal').classList.add('hidden');
+      document.getElementById('emailModal').classList.remove('flex');
+      document.getElementById('smtpSaveMsg').classList.add('hidden');
+    }
+
+    async function saveEmailSettings(e) {
+      e.preventDefault();
+      const smtpHost = document.getElementById('smtpHost').value;
+      const smtpPort = document.getElementById('smtpPort').value;
+      const smtpUser = document.getElementById('smtpUser').value;
+      const smtpPass = document.getElementById('smtpPass').value;
+
+      const payload = { smtpHost, smtpPort, smtpUser };
+      if (smtpPass) payload.smtpPass = smtpPass;
+
+      const res = await fetch('/api/settings/email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      const msg = document.getElementById('smtpSaveMsg');
+      msg.textContent = data.isConfigured
+        ? '✓ Configuração SMTP salva! Os próximos documentos serão enviados usando sua conta.'
+        : '✓ Salvo! Usando envio automático de demonstração (Ethereal).';
+      msg.classList.remove('hidden');
+      checkSmtpSettings();
+    }
+  </script>
+</body>
+</html>
+
