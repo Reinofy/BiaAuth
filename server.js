@@ -51,8 +51,8 @@ function cleanClientId(raw) {
 function readSettings() {
   if (!fs.existsSync(SETTINGS_FILE)) {
     const initial = {
-      googleScriptUrl: (process.env.GOOGLE_SCRIPT_URL || '').trim(),
-      googleClientId: cleanClientId(process.env.GOOGLE_CLIENT_ID || ''),
+      googleScriptUrl: (process.env.GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbybLYUxr9WrFVTsnjfeSD1ZFYE7lC357TRgucoUr7L-CGIhv61ohvaVWQ9_-7v8UJg7/exec').trim(),
+      googleClientId: cleanClientId(process.env.GOOGLE_CLIENT_ID || '123122288720-p9h5ihla4u883kdpjh963s17g2ru3aki.apps.googleusercontent.com'),
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: Number(process.env.SMTP_PORT || 587),
       smtpUser: process.env.SMTP_USER || '',
@@ -65,8 +65,8 @@ function readSettings() {
   try {
     const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
     return {
-      googleScriptUrl: (parsed.googleScriptUrl || process.env.GOOGLE_SCRIPT_URL || '').trim(),
-      googleClientId: cleanClientId(parsed.googleClientId || process.env.GOOGLE_CLIENT_ID || ''),
+      googleScriptUrl: (parsed.googleScriptUrl || process.env.GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbybLYUxr9WrFVTsnjfeSD1ZFYE7lC357TRgucoUr7L-CGIhv61ohvaVWQ9_-7v8UJg7/exec').trim(),
+      googleClientId: cleanClientId(parsed.googleClientId || process.env.GOOGLE_CLIENT_ID || '123122288720-p9h5ihla4u883kdpjh963s17g2ru3aki.apps.googleusercontent.com'),
       smtpHost: parsed.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: Number(parsed.smtpPort || process.env.SMTP_PORT || 587),
       smtpUser: parsed.smtpUser || process.env.SMTP_USER || '',
@@ -75,8 +75,8 @@ function readSettings() {
     };
   } catch (e) {
     return {
-      googleScriptUrl: (process.env.GOOGLE_SCRIPT_URL || '').trim(),
-      googleClientId: cleanClientId(process.env.GOOGLE_CLIENT_ID || '')
+      googleScriptUrl: (process.env.GOOGLE_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbybLYUxr9WrFVTsnjfeSD1ZFYE7lC357TRgucoUr7L-CGIhv61ohvaVWQ9_-7v8UJg7/exec').trim(),
+      googleClientId: cleanClientId(process.env.GOOGLE_CLIENT_ID || '123122288720-p9h5ihla4u883kdpjh963s17g2ru3aki.apps.googleusercontent.com')
     };
   }
 }
