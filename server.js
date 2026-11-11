@@ -43,6 +43,8 @@ function writeDB(data) {
 function readSettings() {
   if (!fs.existsSync(SETTINGS_FILE)) {
     const initial = {
+      googleScriptUrl: process.env.GOOGLE_SCRIPT_URL || '',
+      googleClientId: process.env.GOOGLE_CLIENT_ID || '',
       smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
       smtpPort: Number(process.env.SMTP_PORT || 587),
       smtpUser: process.env.SMTP_USER || '',
@@ -53,9 +55,21 @@ function readSettings() {
     return initial;
   }
   try {
-    return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    const parsed = JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf-8'));
+    return {
+      googleScriptUrl: parsed.googleScriptUrl || process.env.GOOGLE_SCRIPT_URL || '',
+      googleClientId: parsed.googleClientId || process.env.GOOGLE_CLIENT_ID || '',
+      smtpHost: parsed.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com',
+      smtpPort: Number(parsed.smtpPort || process.env.SMTP_PORT || 587),
+      smtpUser: parsed.smtpUser || process.env.SMTP_USER || '',
+      smtpPass: parsed.smtpPass || process.env.SMTP_PASS || '',
+      fromName: parsed.fromName || process.env.FROM_NAME || 'BiaAuth - Assinatura Digital'
+    };
   } catch (e) {
-    return {};
+    return {
+      googleScriptUrl: process.env.GOOGLE_SCRIPT_URL || '',
+      googleClientId: process.env.GOOGLE_CLIENT_ID || ''
+    };
   }
 }
 
@@ -484,44 +498,118 @@ async function sendSignatureEmails(docRecord, signature) {
     error: null
   };
 
+  const settings = readSettings();
+  const providerName =
+    signature.authProvider === 'govbr' ? 'Gov.br (Governo Federal)' : 'Google (Gmail)';
+  const safeFileName = `${docRecord.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_Assinado.pdf`;
+
+  const ownerHtml = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #ffffff; padding: 24px;">
+        <h2 style="margin: 0; font-size: 20px;">Documento Assinado Digitalmente!</h2>
+        <p style="margin: 6px 0 0; opacity: 0.9; font-size: 14px;">Plataforma BiaAuth - Notificação Automática ao Proprietário</p>
+      </div>
+      <div style="padding: 24px; color: #1e293b; background: #ffffff;">
+        <p>Olá, <strong>${docRecord.ownerName}</strong>!</p>
+        <p>O documento <strong>"${docRecord.title}"</strong> que você disponibilizou acabou de ser assinado digitalmente. O arquivo PDF assinado segue <strong>em anexo neste e-mail</strong>.</p>
+        
+        <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; margin: 20px 0;">
+          <h3 style="margin: 0 0 10px; font-size: 15px; color: #1e3a8a;">Dados do Assinante</h3>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Nome Completo:</strong> ${signature.fullName}</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>CPF:</strong> ${signature.cpf}</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>E-mail:</strong> ${signature.email || 'Não informado (facultativo)'}</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Autenticação:</strong> ${providerName} (${signature.authAccount})</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Data e Hora:</strong> ${signature.signedAtFormatted}</p>
+          <p style="margin: 4px 0; font-size: 13px; color: #475569;"><strong>Código de Verificação:</strong> ${signature.verificationCode}</p>
+        </div>
+
+        <p style="font-size: 13px; color: #64748b;">O PDF anexado contém o manifesto completo e o hash criptográfico SHA-256 de integridade.</p>
+      </div>
+    </div>
+  `;
+
+  const signerHtml = `
+    <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
+      <div style="background: linear-gradient(135deg, #0f766e, #10b981); color: #ffffff; padding: 24px;">
+        <h2 style="margin: 0; font-size: 20px;">Sua Cópia do Documento Assinado</h2>
+        <p style="margin: 6px 0 0; opacity: 0.9; font-size: 14px;">Comprovante e Arquivo PDF Assinado - BiaAuth</p>
+      </div>
+      <div style="padding: 24px; color: #1e293b; background: #ffffff;">
+        <p>Olá, <strong>${signature.fullName}</strong>!</p>
+        <p>Conforme solicitado, enviamos em anexo uma cópia do documento <strong>"${docRecord.title}"</strong> assinado digitalmente por você.</p>
+        
+        <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; border-radius: 6px; margin: 20px 0;">
+          <h3 style="margin: 0 0 10px; font-size: 15px; color: #065f46;">Resumo da sua Assinatura</h3>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Documento:</strong> ${docRecord.title}</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Proprietário:</strong> ${docRecord.ownerName} (${docRecord.ownerEmail})</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Assinante:</strong> ${signature.fullName} (CPF: ${signature.cpf})</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Login utilizado:</strong> ${providerName}</p>
+          <p style="margin: 4px 0; font-size: 14px;"><strong>Data/Hora:</strong> ${signature.signedAtFormatted}</p>
+          <p style="margin: 4px 0; font-size: 13px; color: #065f46;"><strong>Código de Verificação:</strong> ${signature.verificationCode}</p>
+        </div>
+
+        <p style="font-size: 13px; color: #64748b;">Guarde este e-mail e o arquivo PDF em anexo para seus registros.</p>
+      </div>
+    </div>
+  `;
+
+  // MODO 1: Envio Real via Google Apps Script (HTTPS - Funciona 100% no plano gratuito do Render!)
+  if (settings.googleScriptUrl && settings.googleScriptUrl.startsWith('https://script.google.com')) {
+    try {
+      results.isRealSmtp = true;
+      const pdfBase64 = fs.readFileSync(docRecord.signedPath).toString('base64');
+
+      // 1) Envia para o proprietário
+      const ownerRes = await fetch(settings.googleScriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: docRecord.ownerEmail,
+          subject: `[BiaAuth] Documento Assinado: "${docRecord.title}" por ${signature.fullName}`,
+          htmlBody: ownerHtml,
+          fileName: safeFileName,
+          pdfBase64
+        })
+      });
+      if (ownerRes.ok) {
+        results.ownerEmailSent = true;
+      }
+
+      // 2) Envia para o assinante (se marcou que deseja cópia)
+      if (signature.sendCopy && signature.email) {
+        const signerRes = await fetch(settings.googleScriptUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            to: signature.email,
+            subject: `[BiaAuth] Cópia do Documento Assinado: "${docRecord.title}"`,
+            htmlBody: signerHtml,
+            fileName: safeFileName,
+            pdfBase64
+          })
+        });
+        if (signerRes.ok) {
+          results.signerEmailSent = true;
+        }
+      }
+
+      return results;
+    } catch (err) {
+      console.error('Erro ao enviar via Google Apps Script:', err);
+      results.error = err.message;
+    }
+  }
+
+  // MODO 2: SMTP / Ethereal
   try {
     const { transporter, fromAddress, isRealSmtp } = await getMailTransporter();
     results.isRealSmtp = isRealSmtp;
 
-    const providerName =
-      signature.authProvider === 'govbr' ? 'Gov.br (Governo Federal)' : 'Google (Gmail)';
-
-    const safeFileName = `${docRecord.title.replace(/[^a-zA-Z0-9_-]/g, '_')}_Assinado.pdf`;
-
-    // 1) E-mail automático para o PROPRIETÁRIO do documento
     const ownerInfo = await transporter.sendMail({
       from: fromAddress,
       to: docRecord.ownerEmail,
       subject: `[BiaAuth] Documento Assinado: "${docRecord.title}" por ${signature.fullName}`,
-      html: `
-        <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-          <div style="background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #ffffff; padding: 24px;">
-            <h2 style="margin: 0; font-size: 20px;">Documento Assinado Digitalmente!</h2>
-            <p style="margin: 6px 0 0; opacity: 0.9; font-size: 14px;">Plataforma BiaAuth - Notificação Automática ao Proprietário</p>
-          </div>
-          <div style="padding: 24px; color: #1e293b; background: #ffffff;">
-            <p>Olá, <strong>${docRecord.ownerName}</strong>!</p>
-            <p>O documento <strong>"${docRecord.title}"</strong> que você disponibilizou acabou de ser assinado digitalmente. O arquivo PDF assinado segue <strong>em anexo neste e-mail</strong>.</p>
-            
-            <div style="background: #f8fafc; border-left: 4px solid #2563eb; padding: 16px; border-radius: 6px; margin: 20px 0;">
-              <h3 style="margin: 0 0 10px; font-size: 15px; color: #1e3a8a;">Dados do Assinante</h3>
-              <p style="margin: 4px 0; font-size: 14px;"><strong>Nome Completo:</strong> ${signature.fullName}</p>
-              <p style="margin: 4px 0; font-size: 14px;"><strong>CPF:</strong> ${signature.cpf}</p>
-              <p style="margin: 4px 0; font-size: 14px;"><strong>E-mail:</strong> ${signature.email || 'Não informado (facultativo)'}</p>
-              <p style="margin: 4px 0; font-size: 14px;"><strong>Autenticação:</strong> ${providerName} (${signature.authAccount})</p>
-              <p style="margin: 4px 0; font-size: 14px;"><strong>Data e Hora:</strong> ${signature.signedAtFormatted}</p>
-              <p style="margin: 4px 0; font-size: 13px; color: #475569;"><strong>Código de Verificação:</strong> ${signature.verificationCode}</p>
-            </div>
-
-            <p style="font-size: 13px; color: #64748b;">O PDF anexado contém o manifesto completo e o hash criptográfico SHA-256 de integridade.</p>
-          </div>
-        </div>
-      `,
+      html: ownerHtml,
       attachments: [
         {
           filename: safeFileName,
@@ -534,36 +622,12 @@ async function sendSignatureEmails(docRecord, signature) {
     results.ownerEmailSent = true;
     results.ownerEmailPreviewUrl = nodemailer.getTestMessageUrl(ownerInfo) || null;
 
-    // 2) E-mail automático para o ASSINANTE (caso ele queira receber uma cópia e tenha informado e-mail)
     if (signature.sendCopy && signature.email) {
       const signerInfo = await transporter.sendMail({
         from: fromAddress,
         to: signature.email,
         subject: `[BiaAuth] Cópia do Documento Assinado: "${docRecord.title}"`,
-        html: `
-          <div style="font-family: 'Segoe UI', Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden;">
-            <div style="background: linear-gradient(135deg, #0f766e, #10b981); color: #ffffff; padding: 24px;">
-              <h2 style="margin: 0; font-size: 20px;">Sua Cópia do Documento Assinado</h2>
-              <p style="margin: 6px 0 0; opacity: 0.9; font-size: 14px;">Comprovante e Arquivo PDF Assinado - BiaAuth</p>
-            </div>
-            <div style="padding: 24px; color: #1e293b; background: #ffffff;">
-              <p>Olá, <strong>${signature.fullName}</strong>!</p>
-              <p>Conforme solicitado, enviamos em anexo uma cópia do documento <strong>"${docRecord.title}"</strong> assinado digitalmente por você.</p>
-              
-              <div style="background: #f0fdf4; border-left: 4px solid #10b981; padding: 16px; border-radius: 6px; margin: 20px 0;">
-                <h3 style="margin: 0 0 10px; font-size: 15px; color: #065f46;">Resumo da sua Assinatura</h3>
-                <p style="margin: 4px 0; font-size: 14px;"><strong>Documento:</strong> ${docRecord.title}</p>
-                <p style="margin: 4px 0; font-size: 14px;"><strong>Proprietário:</strong> ${docRecord.ownerName} (${docRecord.ownerEmail})</p>
-                <p style="margin: 4px 0; font-size: 14px;"><strong>Assinante:</strong> ${signature.fullName} (CPF: ${signature.cpf})</p>
-                <p style="margin: 4px 0; font-size: 14px;"><strong>Login utilizado:</strong> ${providerName}</p>
-                <p style="margin: 4px 0; font-size: 14px;"><strong>Data/Hora:</strong> ${signature.signedAtFormatted}</p>
-                <p style="margin: 4px 0; font-size: 13px; color: #065f46;"><strong>Código de Verificação:</strong> ${signature.verificationCode}</p>
-              </div>
-
-              <p style="font-size: 13px; color: #64748b;">Guarde este e-mail e o arquivo PDF em anexo para seus registros.</p>
-            </div>
-          </div>
-        `,
+        html: signerHtml,
         attachments: [
           {
             filename: safeFileName,
@@ -908,10 +972,51 @@ app.post('/api/documents/:id/sign', async (req, res) => {
   }
 });
 
-// 7. Obter e Salvar Configurações de E-mail (SMTP Gmail ou outro)
+// 7. Obter configurações públicas (Google Client ID para o Login Oficial do Google)
+app.get('/api/public-config', (req, res) => {
+  const s = readSettings();
+  res.json({
+    googleClientId: s.googleClientId || ''
+  });
+});
+
+// 8. Verificar Token Oficial do Google Auth (Google Identity Services)
+app.post('/api/auth/google-verify', async (req, res) => {
+  try {
+    const { credential } = req.body;
+    if (!credential) {
+      return res.status(400).json({ error: 'Token do Google não fornecido.' });
+    }
+
+    const verifyRes = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+    );
+    const payload = await verifyRes.json();
+
+    if (!verifyRes.ok || !payload.email) {
+      return res.status(401).json({ error: 'Token do Google inválido ou expirado.' });
+    }
+
+    res.json({
+      success: true,
+      user: {
+        email: payload.email,
+        name: payload.name || payload.email.split('@')[0],
+        picture: payload.picture || null,
+        emailVerified: payload.email_verified === 'true' || payload.email_verified === true
+      }
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Falha ao validar login do Google: ' + err.message });
+  }
+});
+
+// 9. Obter e Salvar Configurações de E-mail e Google Auth
 app.get('/api/settings/email', (req, res) => {
   const s = readSettings();
   res.json({
+    googleScriptUrl: s.googleScriptUrl || '',
+    googleClientId: s.googleClientId || '',
     smtpHost: s.smtpHost || 'smtp.gmail.com',
     smtpPort: s.smtpPort || 587,
     smtpUser: s.smtpUser || '',
@@ -922,20 +1027,23 @@ app.get('/api/settings/email', (req, res) => {
 
 app.post('/api/settings/email', (req, res) => {
   const current = readSettings();
-  const { smtpHost, smtpPort, smtpUser, smtpPass, fromName } = req.body;
+  const { googleScriptUrl, googleClientId, smtpHost, smtpPort, smtpUser, smtpPass, fromName } = req.body;
 
   const updated = {
-    smtpHost: (smtpHost || 'smtp.gmail.com').trim(),
-    smtpPort: Number(smtpPort || 587),
-    smtpUser: (smtpUser || '').trim(),
-    smtpPass: smtpPass !== undefined ? smtpPass.trim() : current.smtpPass,
-    fromName: (fromName || 'BiaAuth - Assinatura Digital').trim()
+    googleScriptUrl: googleScriptUrl !== undefined ? googleScriptUrl.trim() : (current.googleScriptUrl || ''),
+    googleClientId: googleClientId !== undefined ? googleClientId.trim() : (current.googleClientId || ''),
+    smtpHost: (smtpHost || current.smtpHost || 'smtp.gmail.com').trim(),
+    smtpPort: Number(smtpPort || current.smtpPort || 587),
+    smtpUser: smtpUser !== undefined ? smtpUser.trim() : (current.smtpUser || ''),
+    smtpPass: smtpPass ? smtpPass.trim() : (current.smtpPass || ''),
+    fromName: (fromName || current.fromName || 'BiaAuth - Assinatura Digital').trim()
   };
 
   writeSettings(updated);
   res.json({
     success: true,
-    isConfigured: Boolean(updated.smtpUser && updated.smtpPass)
+    isConfigured: Boolean(updated.googleScriptUrl || (updated.smtpUser && updated.smtpPass)),
+    hasGoogleAuth: Boolean(updated.googleClientId)
   });
 });
 

@@ -200,53 +200,53 @@
     </div>
   </main>
 
-  <!-- Modal de Configuração de E-mail (SMTP / Gmail) -->
-  <div id="emailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center z-50 p-4">
-    <div class="bg-white rounded-2xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200">
+  <!-- Modal de Configuração de E-mail e Login Google Oficial -->
+  <div id="emailModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-xs hidden items-center justify-center z-50 p-4 overflow-y-auto">
+    <div class="bg-white rounded-2xl max-w-xl w-full p-6 sm:p-7 shadow-2xl border border-slate-200 my-8">
       <div class="flex items-center justify-between mb-4">
-        <h3 class="text-lg font-bold text-slate-900">Configurar Disparo de E-mails</h3>
+        <h3 class="text-lg font-bold text-slate-900">Configurar E-mail Real e Login Google</h3>
         <button onclick="closeEmailModal()" class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
       </div>
 
-      <div class="p-3.5 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-900 mb-4 leading-relaxed">
-        <strong>Modo Automático Já Ativo:</strong> Mesmo sem preencher nada abaixo, o sistema gera uma caixa de e-mail de demonstração real (Ethereal) e exibe na tela o botão para visualizar o e-mail enviado com o PDF anexado.<br><br>
-        <strong>Para enviar para caixas de entrada reais (Gmail):</strong> Informe seu endereço Gmail e uma <a href="https://myaccount.google.com/apppasswords" target="_blank" class="underline font-semibold">Senha de App do Google</a>.
-      </div>
+      <form id="smtpForm" onsubmit="saveEmailSettings(event)" class="space-y-4 text-sm">
 
-      <form id="smtpForm" onsubmit="saveEmailSettings(event)" class="space-y-3.5 text-sm">
-        <div class="grid grid-cols-3 gap-3">
-          <div class="col-span-2">
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Servidor SMTP</label>
-            <input type="text" id="smtpHost" value="smtp.gmail.com"
-              class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+        <!-- 1. Envio Gratuito pelo Gmail via Google Apps Script (Funciona no Render Free!) -->
+        <div class="p-4 rounded-xl bg-emerald-50/70 border border-emerald-200 space-y-2.5">
+          <div class="flex items-center justify-between">
+            <label class="block text-xs font-bold uppercase tracking-wider text-emerald-900">
+              1. Envio Automático pelo seu Gmail (100% Gratuito)
+            </label>
+            <button type="button" onclick="copyGoogleScriptCode()" class="text-[11px] font-semibold px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white transition">
+              📋 Copiar Código do Script
+            </button>
           </div>
-          <div>
-            <label class="block text-xs font-semibold text-slate-700 mb-1">Porta</label>
-            <input type="number" id="smtpPort" value="587"
-              class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-          </div>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Cole abaixo a URL do seu <strong>Google Apps Script</strong> para que o sistema envie os PDFs assinados direto pelo seu Gmail (funciona perfeitamente no plano gratuito do Render):
+          </p>
+          <input type="url" id="googleScriptUrl" placeholder="https://script.google.com/macros/s/.../exec"
+            class="w-full px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs font-mono" />
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Seu E-mail Remetente (ex: seuemail@gmail.com)</label>
-          <input type="email" id="smtpUser" placeholder="Deixe em branco para usar o modo de demonstração"
-            class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
+        <!-- 2. Login Oficial do Google (Google Auth Client ID) -->
+        <div class="p-4 rounded-xl bg-blue-50/70 border border-blue-200 space-y-2">
+          <label class="block text-xs font-bold uppercase tracking-wider text-blue-900">
+            2. Login Oficial do Google (Google Client ID)
+          </label>
+          <p class="text-xs text-slate-600 leading-relaxed">
+            Cole aqui o seu <strong>Client ID</strong> do Google Cloud para abrir a janela oficial de autenticação do Google ao lado do botão gov.br:
+          </p>
+          <input type="text" id="googleClientId" placeholder="Ex: 123456789-abc...apps.googleusercontent.com"
+            class="w-full px-3 py-2 rounded-lg border border-blue-300 bg-white text-xs font-mono" />
         </div>
 
-        <div>
-          <label class="block text-xs font-semibold text-slate-700 mb-1">Senha de App do Gmail (16 letras)</label>
-          <input type="password" id="smtpPass" placeholder="xxxx xxxx xxxx xxxx"
-            class="w-full px-3 py-2 rounded-lg border border-slate-300 text-sm" />
-        </div>
+        <div id="smtpSaveMsg" class="hidden text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg border border-emerald-200"></div>
 
-        <div id="smtpSaveMsg" class="hidden text-xs font-semibold text-emerald-700 bg-emerald-50 p-2.5 rounded-lg"></div>
-
-        <div class="flex justify-end gap-2 pt-3">
+        <div class="flex justify-end gap-2 pt-2">
           <button type="button" onclick="closeEmailModal()" class="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold">
             Fechar
           </button>
-          <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold">
-            Salvar Configuração
+          <button type="submit" class="px-5 py-2.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-xs">
+            Salvar Configurações
           </button>
         </div>
       </form>
@@ -504,21 +504,36 @@
       }
     }
 
-    // Modal de configuração de e-mail
+    // Modal de configuração de e-mail e Google Auth
     async function checkSmtpSettings() {
       try {
         const res = await fetch('/api/settings/email');
         const data = await res.json();
-        document.getElementById('smtpHost').value = data.smtpHost || 'smtp.gmail.com';
-        document.getElementById('smtpPort').value = data.smtpPort || 587;
-        document.getElementById('smtpUser').value = data.smtpUser || '';
+        document.getElementById('googleScriptUrl').value = data.googleScriptUrl || '';
+        document.getElementById('googleClientId').value = data.googleClientId || '';
         const badge = document.getElementById('smtpStatusBadge');
-        if (data.smtpUser && data.hasPassword) {
-          badge.textContent = `E-mail Ativo (${data.smtpUser})`;
+        if (data.googleScriptUrl) {
+          badge.textContent = '✓ E-mail Gmail e Google Auth Configurados';
         } else {
-          badge.textContent = 'Configurar E-mail (Modo Teste Ativo)';
+          badge.textContent = 'Configurar Gmail e Login Google';
         }
       } catch (e) {}
+    }
+
+    function copyGoogleScriptCode() {
+      const code = `function doPost(e) {
+  var dados = JSON.parse(e.postData.contents);
+  var pdfBlob = Utilities.newBlob(Utilities.base64Decode(dados.pdfBase64), 'application/pdf', dados.fileName);
+  MailApp.sendEmail({
+    to: dados.to,
+    subject: dados.subject,
+    htmlBody: dados.htmlBody,
+    attachments: [pdfBlob]
+  });
+  return ContentService.createTextOutput(JSON.stringify({ ok: true })).setMimeType(ContentService.MimeType.JSON);
+}`;
+      navigator.clipboard.writeText(code);
+      alert('Código do Google Apps Script copiado! Agora basta colar em script.google.com e clicar em Implantar -> App da Web.');
     }
 
     function openEmailModal() {
@@ -534,24 +549,17 @@
 
     async function saveEmailSettings(e) {
       e.preventDefault();
-      const smtpHost = document.getElementById('smtpHost').value;
-      const smtpPort = document.getElementById('smtpPort').value;
-      const smtpUser = document.getElementById('smtpUser').value;
-      const smtpPass = document.getElementById('smtpPass').value;
-
-      const payload = { smtpHost, smtpPort, smtpUser };
-      if (smtpPass) payload.smtpPass = smtpPass;
+      const googleScriptUrl = document.getElementById('googleScriptUrl').value;
+      const googleClientId = document.getElementById('googleClientId').value;
 
       const res = await fetch('/api/settings/email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify({ googleScriptUrl, googleClientId })
       });
       const data = await res.json();
       const msg = document.getElementById('smtpSaveMsg');
-      msg.textContent = data.isConfigured
-        ? '✓ Configuração SMTP salva! Os próximos documentos serão enviados usando sua conta.'
-        : '✓ Salvo! Usando envio automático de demonstração (Ethereal).';
+      msg.textContent = '✓ Configurações salvas com sucesso!';
       msg.classList.remove('hidden');
       checkSmtpSettings();
     }
